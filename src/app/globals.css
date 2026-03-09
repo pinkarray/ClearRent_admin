@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --brand: 10 123 108;
+    --brand-light: 77 166 154;
+    --accent: 244 168 54;
+    --background: 248 249 250;
+    --surface: 255 255 255;
+    --text-primary: 26 26 46;
+    --text-secondary: 107 114 128;
+    --text-hint: 156 163 175;
+    --border: 229 231 235;
+    --success: 16 185 129;
+    --error: 239 68 68;
+    --warning: 245 158 11;
+    --info: 59 130 246;
+  }
+
+  .dark {
+    --brand: 15 168 143;
+    --brand-light: 92 196 181;
+    --accent: 244 168 54;
+    --background: 18 18 18;
+    --surface: 30 30 30;
+    --text-primary: 232 232 236;
+    --text-secondary: 156 163 175;
+    --text-hint: 107 114 128;
+    --border: 46 46 46;
+    --success: 52 211 153;
+    --error: 248 113 113;
+    --warning: 251 191 36;
+    --info: 96 165 250;
+  }
+
+  body {
+    @apply bg-[rgb(var(--background))] text-[rgb(var(--text-primary))] font-sans antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .card-hover {
+    @apply card hover:border-[rgb(var(--brand))]/40 hover:shadow-lg hover:shadow-[rgb(var(--brand))]/5 transition-all duration-200 cursor-pointer;
+  }
+
+  .stat-card {
+    @apply card relative overflow-hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    @apply absolute top-0 left-0 w-1 h-full rounded-l-2xl;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-success {
+    @apply badge bg-emerald-500/10 text-emerald-500 dark:bg-emerald-400/10 dark:text-emerald-400;
+  }
+
+  .badge-error {
+    @apply badge bg-red-500/10 text-red-500 dark:bg-red-400/10 dark:text-red-400;
+  }
+
+  .badge-warning {
+    @apply badge bg-amber-500/10 text-amber-500 dark:bg-amber-400/10 dark:text-amber-400;
+  }
+
+  .badge-info {
+    @apply badge bg-blue-500/10 text-blue-500 dark:bg-blue-400/10 dark:text-blue-400;
+  }
+
+  .badge-neutral {
+    @apply badge bg-gray-500/10 text-gray-500 dark:bg-gray-400/10 dark:text-gray-400;
+  }
+
+  .input {
+    @apply w-full px-4 py-3 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--background))] text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-hint))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--brand))]/40 focus:border-[rgb(var(--brand))] transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl bg-[rgb(var(--brand))] text-white font-semibold hover:opacity-90 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text-primary))] font-semibold hover:bg-[rgb(var(--background))] active:scale-[0.98] transition-all duration-150;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-600;
+}
