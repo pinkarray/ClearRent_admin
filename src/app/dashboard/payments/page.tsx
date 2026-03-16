@@ -36,7 +36,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type PaymentType = "inspection" | "rent";
+type PaymentType = "inspection" | "rent" | "listing_fee";
 type TabFilter = "pending" | "confirmed" | "refunded" | "all";
 
 interface Payment {
@@ -97,13 +97,14 @@ export default function PaymentsPage() {
   // ── Listeners ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    let loaded = { inspection: false, rent: false };
+    let loaded = { inspection: false, rent: false, listingFee: false };
     let inspectionPayments: Payment[] = [];
     let rentPayments: Payment[] = [];
+    let listingFeePayments: Payment[] = [];
 
     const merge = () => {
-      if (loaded.inspection && loaded.rent) {
-        const all = [...inspectionPayments, ...rentPayments].sort(
+      if (loaded.inspection && loaded.rent && loaded.listingFee) {
+        const all = [...inspectionPayments, ...rentPayments, ...listingFeePayments].sort(
           (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
         );
         setPayments(all);
@@ -190,9 +191,62 @@ export default function PaymentsPage() {
       merge();
     });
 
+    // Listing fee payments — properties with listingFeeStatus in [pending, approved, rejected]
+    // Note: no orderBy to avoid composite index requirement — sorted client-side in merge()
+    const listingQ = query(
+      collection(db, "properties"),
+      where("listingFeeStatus", "in", ["pending", "approved", "rejected"])
+    );
+
+    const unsubListing = onSnapshot(
+      listingQ,
+      (snap) => {
+        listingFeePayments = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            type: "listing_fee" as PaymentType,
+            tenantId: data.landlordId || "",
+            tenantName: data.landlordName || "Unknown Landlord",
+            tenantPhone: data.landlordPhone,
+            propertyId: d.id,
+            propertyTitle: data.title || "Unknown Property",
+            propertyAddress: `${data.address || ""}, ${data.city || ""}`,
+            landlordId: data.landlordId,
+            landlordName: data.landlordName,
+            landlordPhone: data.landlordPhone,
+            amount: 10000,
+            paymentProofUrl: data.listingFeeProofUrl,
+            paymentReference: undefined,
+            paymentStatus:
+              data.listingFeeStatus === "pending"
+                ? "pending_verification"
+                : data.listingFeeStatus === "approved"
+                ? "paid"
+                : "refunded",
+            refundReason: data.listingFeeRejectionReason,
+            paidAt: parseTimestamp(data.createdAt),
+            verifiedAt: parseTimestamp(data.listingFeeVerifiedAt),
+            refundedAt: parseTimestamp(data.listingFeeRejectedAt),
+            createdAt: parseTimestamp(data.createdAt) || new Date(),
+          };
+        });
+        loaded.listingFee = true;
+        merge();
+      },
+      (error) => {
+        console.error("❌ Listing fee query failed:", error);
+        // Don't block the page — just mark as loaded with empty results
+        listingFeePayments = [];
+        loaded.listingFee = true;
+        merge();
+      }
+    );
+
     return () => {
       unsubInsp();
       unsubRent();
+      unsubListing();
     };
   }, []);
 
@@ -243,6 +297,13 @@ export default function PaymentsPage() {
           status: "pending",
           updatedAt: serverTimestamp(),
         });
+      } else if (payment.type === "listing_fee") {
+        await updateDoc(doc(db, "properties", payment.id), {
+          listingFeeStatus: "approved",
+          listingFeeVerifiedAt: serverTimestamp(),
+          isAvailable: true,
+          updatedAt: serverTimestamp(),
+        });
       } else {
         await updateDoc(doc(db, "rental_interests", payment.id), {
           status: "paymentVerified",
@@ -271,6 +332,14 @@ export default function PaymentsPage() {
           refundReason: reason,
           refundedAt: serverTimestamp(),
           status: "refunded",
+          updatedAt: serverTimestamp(),
+        });
+      } else if (payment.type === "listing_fee") {
+        await updateDoc(doc(db, "properties", payment.id), {
+          listingFeeStatus: "rejected",
+          listingFeeRejectionReason: reason,
+          listingFeeRejectedAt: serverTimestamp(),
+          isAvailable: false,
           updatedAt: serverTimestamp(),
         });
       } else {
@@ -794,6 +863,8 @@ function PaymentDetailPanel({
                 This payment has been confirmed.{" "}
                 {payment.type === "rent"
                   ? "The landlord can now accept or reject this tenant."
+                  : payment.type === "listing_fee"
+                  ? "The property is now live and visible to tenants."
                   : "The inspection can proceed."}
               </p>
             </div>
@@ -807,15 +878,25 @@ function PaymentDetailPanel({
 // ─── Shared Components ────────────────────────────────────────────────────────
 
 function TypeBadge({ type }: { type: PaymentType }) {
-  return type === "inspection" ? (
-    <span className="badge bg-purple-500/10 text-purple-600 dark:text-purple-400">
-      Inspection
-    </span>
-  ) : (
-    <span className="badge bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-      Rent
-    </span>
-  );
+  if (type === "inspection") {
+    return (
+      <span className="badge bg-purple-500/10 text-purple-600 dark:text-purple-400">
+        Inspection
+      </span>
+    );
+  } else if (type === "listing_fee") {
+    return (
+      <span className="badge bg-blue-500/10 text-blue-600 dark:text-blue-400">
+        Listing Fee
+      </span>
+    );
+  } else {
+    return (
+      <span className="badge bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        Rent
+      </span>
+    );
+  }
 }
 
 function StatusBadge({ status }: { status: string }) {
