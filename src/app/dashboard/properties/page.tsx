@@ -177,6 +177,7 @@ export default function PropertiesPage() {
       await updateDoc(doc(db, "properties", property.id), {
         ownershipDocStatus: "verified",
         isVerified: true,
+        isAvailable: true, // Approving doc = publishing the listing
         updatedAt: serverTimestamp(),
       });
       if (selectedProperty?.id === property.id) setSelectedProperty(null);
@@ -192,6 +193,7 @@ export default function PropertiesPage() {
       await updateDoc(doc(db, "properties", property.id), {
         ownershipDocStatus: "rejected",
         isVerified: false,
+        isAvailable: false, // Rejected = stays hidden
         ownershipDocRejectionReason: reason,
         updatedAt: serverTimestamp(),
       });
@@ -371,7 +373,7 @@ function PropertyCard({
         )}
         {/* Badges overlaid on image */}
         <div className="absolute top-2 left-2 flex gap-1.5">
-          <AvailabilityBadge available={property.isAvailable} />
+          <AvailabilityBadge available={property.isAvailable} docStatus={property.ownershipDocStatus} />
         </div>
         <div className="absolute top-2 right-2">
           <DocStatusBadge status={property.ownershipDocStatus} />
@@ -504,7 +506,7 @@ function PropertyDetailPanel({
               <span className="badge bg-[rgb(var(--background))] text-[rgb(var(--text-secondary))] border border-[rgb(var(--border))]">
                 {property.propertyType === "selfContain" ? "Self Contain" : capitalize(property.propertyType)}
               </span>
-              <AvailabilityBadge available={property.isAvailable} />
+              <AvailabilityBadge available={property.isAvailable} docStatus={property.ownershipDocStatus} />
               <DocStatusBadge status={property.ownershipDocStatus} />
             </div>
           </div>
@@ -598,7 +600,7 @@ function PropertyDetailPanel({
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50"
                     >
                       {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                      Verify Doc
+                      Approve & Publish
                     </button>
                     <button
                       onClick={() => setShowRejectForm(true)}
@@ -648,14 +650,24 @@ function PropertyDetailPanel({
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 
-function AvailabilityBadge({ available }: { available: boolean }) {
-  return available ? (
-    <span className="badge-success gap-1 text-[10px]">
-      <CheckCircle2 size={10} /> Available
-    </span>
-  ) : (
+function AvailabilityBadge({ available, docStatus }: { available: boolean; docStatus?: string }) {
+  if (available) {
+    return (
+      <span className="badge-success gap-1 text-[10px]">
+        <CheckCircle2 size={10} /> Available
+      </span>
+    );
+  }
+  if (docStatus && docStatus !== "verified") {
+    return (
+      <span className="badge-warning gap-1 text-[10px]">
+        <Clock size={10} /> Pending Review
+      </span>
+    );
+  }
+  return (
     <span className="badge-neutral gap-1 text-[10px]">
-      <XCircle size={10} /> Occupied
+      <XCircle size={10} /> Unavailable
     </span>
   );
 }
