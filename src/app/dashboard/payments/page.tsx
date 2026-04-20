@@ -152,7 +152,7 @@ export default function PaymentsPage() {
     // Rent payments — rental_interests with status paymentUploaded or paymentVerified
     const rentQ = query(
       collection(db, "rental_interests"),
-      where("status", "in", ["paymentUploaded", "paymentVerified", "rejected"]),
+      where("status", "in", ["payment_uploaded", "payment_verified", "rejected"]),
       orderBy("createdAt", "desc")
     );
 
@@ -175,9 +175,9 @@ export default function PaymentsPage() {
           paymentProofUrl: data.paymentProofUrl,
           paymentReference: data.paymentReference,
           paymentStatus:
-            data.status === "paymentUploaded"
+            data.status === "payment_uploaded"
               ? "pending_verification"
-              : data.status === "paymentVerified"
+              : data.status === "payment_verified"
               ? "paid"
               : "refunded",
           refundReason: data.refundReason,

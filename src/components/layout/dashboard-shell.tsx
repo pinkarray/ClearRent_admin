@@ -21,6 +21,7 @@ import {
   Monitor,
   ChevronLeft,
   Menu,
+  MapPin,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -32,6 +33,7 @@ const navItems = [
   { label: "Agent Payouts", href: "/dashboard/payouts", icon: Wallet },
   { label: "Properties", href: "/dashboard/properties", icon: Building2 },
   { label: "Issues", href: "/dashboard/issues", icon: AlertTriangle },
+  { label: "Area Requests", href: "/dashboard/unknown-areas", icon: MapPin },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { label: "Announcements", href: "/dashboard/announcements", icon: Megaphone },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
