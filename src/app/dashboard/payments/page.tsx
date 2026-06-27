@@ -152,7 +152,8 @@ export default function PaymentsPage() {
     // Rent payments — rental_interests with status paymentUploaded or paymentVerified
     const rentQ = query(
       collection(db, "rental_interests"),
-      where("status", "in", ["payment_uploaded", "payment_verified", "rejected"]),
+      where("status", "in",
+        ["payment_uploaded", "payment_verified", "rejected", "lost_to_other"]),
       orderBy("createdAt", "desc")
     );
 
@@ -306,7 +307,7 @@ export default function PaymentsPage() {
         });
       } else {
         await updateDoc(doc(db, "rental_interests", payment.id), {
-          status: "paymentVerified",
+          status: "payment_verified",
           isPaymentVerified: true,
           paymentVerifiedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),

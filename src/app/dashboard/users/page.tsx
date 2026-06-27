@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
-import { db, ADMIN_UID } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { ClearRentUser, parseTimestamp } from "@/types";
 import { cn, capitalize, timeAgo } from "@/lib/utils";
 import { Search, Users, ShieldCheck, ShieldAlert, ShieldOff, Clock, MoreVertical, Mail, Phone, MapPin, Star, Building2, Loader2, X, AlertTriangle } from "lucide-react";
@@ -11,6 +12,7 @@ type FilterType = "all" | "landlord" | "tenant" | "agent";
 type StatusFilter = "all" | "verified" | "pending" | "rejected" | "none";
 
 export default function UsersPage() {
+  const { user } = useAuth();
   const [users, setUsers] = useState<ClearRentUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -21,7 +23,7 @@ export default function UsersPage() {
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, (snap) => {
-      const parsed: ClearRentUser[] = snap.docs.filter((d) => d.id !== ADMIN_UID).map((d) => {
+      const parsed: ClearRentUser[] = snap.docs.filter((d) => d.id !== user?.uid).map((d) => {
         const data = d.data();
         return { id: d.id, uid: data.uid || d.id, fullName: data.fullName || "Unknown", fullNameLower: data.fullNameLower, email: data.email || "", phone: data.phone || "", accountType: data.accountType || "tenant", profileCompleted: data.profileCompleted || false, emailVerified: data.emailVerified || false, profileImageUrl: data.profileImageUrl, verificationStatus: data.verificationStatus || "none", isVerified: data.isVerified || false, verificationSubmittedAt: parseTimestamp(data.verificationSubmittedAt), verificationReviewedAt: parseTimestamp(data.verificationReviewedAt), rejectionReason: data.rejectionReason, baseLocation: data.baseLocation, serviceAreas: data.serviceAreas, rating: data.rating, totalInspections: data.totalInspections, totalRatings: data.totalRatings, allowsCalls: data.allowsCalls, createdAt: parseTimestamp(data.createdAt), updatedAt: parseTimestamp(data.updatedAt) };
       });

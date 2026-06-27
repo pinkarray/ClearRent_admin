@@ -22,8 +22,13 @@ import {
   ChevronLeft,
   Menu,
   MapPin,
+  Banknote,
+  TrendingUp,
+  ClipboardCheck,
+  RotateCcw,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { AttentionBanner } from "@/components/layout/attention-banner";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -31,6 +36,10 @@ const navItems = [
   { label: "Verifications", href: "/dashboard/verifications", icon: ShieldCheck },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
   { label: "Agent Payouts", href: "/dashboard/payouts", icon: Wallet },
+  { label: "Rent Payouts", href: "/dashboard/rent-payouts", icon: Banknote },
+  { label: "Refunds", href: "/dashboard/refunds", icon: RotateCcw },
+  { label: "Rent Reviews", href: "/dashboard/rent-reviews", icon: TrendingUp },
+  { label: "Inspection Reviews", href: "/dashboard/inspection-reviews", icon: ClipboardCheck },
   { label: "Properties", href: "/dashboard/properties", icon: Building2 },
   { label: "Issues", href: "/dashboard/issues", icon: AlertTriangle },
   { label: "Area Requests", href: "/dashboard/unknown-areas", icon: MapPin },
@@ -198,7 +207,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className="w-10" /> {/* Spacer for centering */}
         </header>
 
-        <div className="p-4 lg:p-8">{children}</div>
+        <div className="p-4 lg:p-8">
+          <AttentionBanner />
+          {children}
+        </div>
       </main>
     </div>
   );

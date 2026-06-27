@@ -16,31 +16,13 @@ import {
   ArrowRight,
   Clock,
   Loader2,
-  FileCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 export default function DashboardPage() {
   const stats = useDashboardStats();
   const { activities, loading: activitiesLoading } = useRecentActivity(12);
   const router = useRouter();
-
-  // Pending property docs counter
-  const [pendingPropertyDocs, setPendingPropertyDocs] = useState(0);
-
-  useEffect(() => {
-    const q = query(
-      collection(db, "properties"),
-      where("ownershipDocStatus", "==", "pending")
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setPendingPropertyDocs(snap.size);
-    });
-    return () => unsub();
-  }, []);
 
   return (
     <div className="space-y-8">
@@ -53,64 +35,6 @@ export default function DashboardPage() {
           Welcome back. Here&apos;s what&apos;s happening on ClearRent.
         </p>
       </div>
-
-      {/* Attention Needed Banner */}
-      {!stats.loading && (stats.pendingVerifications > 0 || stats.openIssues > 0 || stats.pendingPayments > 0 || pendingPropertyDocs > 0) && (
-        <div className="card border-amber-500/30 bg-amber-500/5">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-              <AlertTriangle size={20} className="text-amber-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-sm text-[rgb(var(--text-primary))]">
-                Items needing your attention
-              </h3>
-              <div className="flex flex-wrap gap-4 mt-2">
-                {pendingPropertyDocs > 0 && (
-                  <button
-                    onClick={() => router.push("/dashboard/properties")}
-                    className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:underline"
-                  >
-                    <FileCheck size={14} />
-                    {pendingPropertyDocs} propert{pendingPropertyDocs !== 1 ? "ies" : "y"} awaiting review
-                    <ArrowRight size={12} />
-                  </button>
-                )}
-                {stats.pendingVerifications > 0 && (
-                  <button
-                    onClick={() => router.push("/dashboard/verifications")}
-                    className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:underline"
-                  >
-                    <ShieldCheck size={14} />
-                    {stats.pendingVerifications} pending verification{stats.pendingVerifications !== 1 ? "s" : ""}
-                    <ArrowRight size={12} />
-                  </button>
-                )}
-                {stats.pendingPayments > 0 && (
-                  <button
-                    onClick={() => router.push("/dashboard/payments")}
-                    className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:underline"
-                  >
-                    <CreditCard size={14} />
-                    {stats.pendingPayments} pending payment{stats.pendingPayments !== 1 ? "s" : ""}
-                    <ArrowRight size={12} />
-                  </button>
-                )}
-                {stats.openIssues > 0 && (
-                  <button
-                    onClick={() => router.push("/dashboard/issues")}
-                    className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:underline"
-                  >
-                    <AlertTriangle size={14} />
-                    {stats.openIssues} open issue{stats.openIssues !== 1 ? "s" : ""}
-                    <ArrowRight size={12} />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

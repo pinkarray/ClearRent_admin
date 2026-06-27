@@ -12,16 +12,13 @@ import {
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { parseTimestamp } from "@/types";
 import { cn, capitalize, timeAgo } from "@/lib/utils";
 import {
   ShieldCheck,
-  ShieldOff,
-  Clock,
   FileText,
   Image as ImageIcon,
-  ExternalLink,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -447,26 +444,53 @@ function DocumentViewerPanel({
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loadingDoc, setLoadingDoc] = useState(false);
 
-  // Build document list based on account type
-  const documents: { label: string; url?: string }[] = [];
-  documents.push({ label: "NIN / Government ID", url: v.ninUrl });
+  // Fetch a private Storage doc through the admin-guarded route, with the
+  // admin's ID token in the Authorization header, then show it as a blob URL.
+  // The token never rides in a URL.
+  const openDoc = async (path: string) => {
+    try {
+      setLoadingDoc(true);
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      const res = await fetch(
+        `/api/verification-image?path=${encodeURIComponent(path)}`,
+        { headers: { Authorization: `Bearer ${idToken}` } }
+      );
+      if (!res.ok) {
+        console.error("Failed to load document:", res.status);
+        return;
+      }
+      const blob = await res.blob();
+      setPreviewUrl(URL.createObjectURL(blob));
+    } catch (err) {
+      console.error("Error loading document:", err);
+    } finally {
+      setLoadingDoc(false);
+    }
+  };
+
+  // Build document list based on account type. Values are Storage PATHS now,
+  // not URLs — resolved to bytes at view time via openDoc.
+  const documents: { label: string; path?: string }[] = [];
+  documents.push({ label: "NIN / Government ID", path: v.ninUrl });
 
   if (v.accountType === "landlord") {
-    documents.push({ label: "Property Document", url: v.propertyDocUrl });
-    documents.push({ label: "Utility Bill", url: v.utilityBillUrl });
+    documents.push({ label: "Property Document", path: v.propertyDocUrl });
+    documents.push({ label: "Utility Bill", path: v.utilityBillUrl });
   } else if (v.accountType === "tenant") {
-    documents.push({ label: "Proof of Income", url: v.proofOfIncomeUrl });
+    documents.push({ label: "Proof of Income", path: v.proofOfIncomeUrl });
   } else if (v.accountType === "agent") {
-    documents.push({ label: "Proof of Address", url: v.proofOfAddressUrl });
-    documents.push({ label: "Guarantor ID", url: v.guarantorIdUrl });
+    documents.push({ label: "Proof of Address", path: v.proofOfAddressUrl });
+    documents.push({ label: "Guarantor ID", path: v.guarantorIdUrl });
     if (v.experienceProofUrl) {
-      documents.push({ label: "Experience Proof", url: v.experienceProofUrl });
+      documents.push({ label: "Experience Proof", path: v.experienceProofUrl });
     }
   }
 
   if (v.paymentProofUrl) {
-    documents.push({ label: "Payment Proof", url: v.paymentProofUrl });
+    documents.push({ label: "Payment Proof", path: v.paymentProofUrl });
   }
 
   return (
@@ -475,8 +499,8 @@ function DocumentViewerPanel({
 
       {/* Image preview overlay */}
       {previewUrl && (
-        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => setPreviewUrl(null)}>
-          <button className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors" onClick={() => setPreviewUrl(null)}>
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }}>
+          <button className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors" onClick={() => { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }}>
             <X size={20} className="text-white" />
           </button>
           <img src={previewUrl} alt="Document preview" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
@@ -554,33 +578,23 @@ function DocumentViewerPanel({
                   key={i}
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-xl border transition-colors",
-                    d.url
+                    d.path
                       ? "border-[rgb(var(--border))] hover:bg-[rgb(var(--background))] cursor-pointer"
                       : "border-dashed border-[rgb(var(--border))] opacity-50"
                   )}
-                  onClick={() => d.url && setPreviewUrl(d.url)}
+                  onClick={() => d.path && !loadingDoc && openDoc(d.path)}
                 >
                   <div className={cn(
                     "w-9 h-9 rounded-lg flex items-center justify-center",
-                    d.url ? "bg-[rgb(var(--brand))]/10" : "bg-[rgb(var(--background))]"
+                    d.path ? "bg-[rgb(var(--brand))]/10" : "bg-[rgb(var(--background))]"
                   )}>
-                    {d.url ? <ImageIcon size={16} className="text-[rgb(var(--brand))]" /> : <FileText size={16} className="text-[rgb(var(--text-hint))]" />}
+                    {d.path ? <ImageIcon size={16} className="text-[rgb(var(--brand))]" /> : <FileText size={16} className="text-[rgb(var(--text-hint))]" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[rgb(var(--text-primary))]">{d.label}</p>
-                    <p className="text-[11px] text-[rgb(var(--text-hint))]">{d.url ? "Tap to preview" : "Not uploaded"}</p>
+                    <p className="text-[11px] text-[rgb(var(--text-hint))]">{d.path ? "Tap to preview" : "Not uploaded"}</p>
                   </div>
-                  {d.url && (
-                    <a
-                      href={d.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-1.5 rounded-lg hover:bg-[rgb(var(--background))] transition-colors"
-                    >
-                      <ExternalLink size={14} className="text-[rgb(var(--text-hint))]" />
-                    </a>
-                  )}
+                  {loadingDoc && <Loader2 size={14} className="animate-spin text-[rgb(var(--text-hint))]" />}
                 </div>
               ))}
             </div>

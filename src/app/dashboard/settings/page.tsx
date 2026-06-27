@@ -7,7 +7,7 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { db, ADMIN_UID } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import {
   sendPasswordResetEmail,
@@ -127,7 +127,7 @@ function ProfileSection() {
     setError("");
     try {
       await updateProfile(user, { displayName: displayName.trim() });
-      await updateDoc(doc(db, "users", ADMIN_UID), {
+      await updateDoc(doc(db, "users", user.uid), {
         fullName: displayName.trim(),
         updatedAt: serverTimestamp(),
       });

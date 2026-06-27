@@ -1,38 +1,13 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  doc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { fetchBankDetails } from "@/lib/bank";
 import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
-import {
-  Wallet,
-  Search,
-  X,
-  Loader2,
-  CheckCircle2,
-  Clock,
-  Copy,
-  Phone,
-  User,
-  Building2,
-  AlertTriangle,
-  Landmark,
-  UserCheck,
-  History,
-  ExternalLink,
-} from "lucide-react";
-
+import { Wallet, Search, X, Loader2, CheckCircle2, Clock, Copy, Phone, User, Building2, AlertTriangle, Landmark, UserCheck, History, ExternalLink,} from "lucide-react";
+import { MarkPaidModal } from "@/components/MarkPaidModal";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TabFilter = "pending" | "paid";
@@ -95,8 +70,8 @@ export default function PayoutsPage() {
   const [tabFilter, setTabFilter] = useState<TabFilter>("pending");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPayout, setSelectedPayout] = useState<Payout | null>(null);
-  const [processing, setProcessing] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState<string | null>(null);
+  const [payoutToMarkPaid, setPayoutToMarkPaid] = useState<Payout | null>(null);
 
   // ── Listener ───────────────────────────────────────────────────────────────
 
@@ -148,28 +123,16 @@ export default function PayoutsPage() {
       base.forEach(async (payout) => {
         if (!payout.handlerId) return;
         try {
-          const userDoc = await getDoc(doc(db, "users", payout.handlerId));
-          if (userDoc.exists()) {
-            const d = userDoc.data();
-            const bank: BankDetails = {
-              bankName: d.bankName || d.bankDetails?.bankName,
-              accountName: d.accountName || d.bankDetails?.accountName,
-              accountNumber: d.accountNumber || d.bankDetails?.accountNumber,
-            };
-            setPayouts((prev) =>
-              prev.map((p) =>
-                p.id === payout.id
-                  ? { ...p, bankDetails: bank, bankLoading: false }
-                  : p
-              )
-            );
-          } else {
-            setPayouts((prev) =>
-              prev.map((p) =>
-                p.id === payout.id ? { ...p, bankLoading: false } : p
-              )
-            );
-          }
+          // C1: bank now lives in the locked private/bank subcollection
+          // (with legacy fallback). See src/lib/bank.ts.
+          const bank = await fetchBankDetails(payout.handlerId);
+          setPayouts((prev) =>
+            prev.map((p) =>
+              p.id === payout.id
+                ? { ...p, bankDetails: bank ?? undefined, bankLoading: false }
+                : p
+            )
+          );
         } catch {
           setPayouts((prev) =>
             prev.map((p) =>
@@ -216,23 +179,8 @@ export default function PayoutsPage() {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  const markAsPaid = async (payout: Payout) => {
-    if (processing.has(payout.id)) return;
-    setProcessing((s) => new Set(s).add(payout.id));
-    try {
-      await updateDoc(doc(db, "inspection_requests", payout.id), {
-        agentPayoutStatus: "paid",
-        agentPaidAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      if (selectedPayout?.id === payout.id) setSelectedPayout(null);
-    } finally {
-      setProcessing((s) => {
-        const n = new Set(s);
-        n.delete(payout.id);
-        return n;
-      });
-    }
+  const markAsPaid = (payout: Payout) => {
+    setPayoutToMarkPaid(payout);
   };
 
   const copyToClipboard = (text: string, key: string) => {
@@ -372,7 +320,6 @@ export default function PayoutsPage() {
             <PayoutCard
               key={payout.id}
               payout={payout}
-              processing={processing.has(payout.id)}
               copied={copied}
               onView={() => setSelectedPayout(payout)}
               onMarkPaid={() => markAsPaid(payout)}
@@ -386,14 +333,29 @@ export default function PayoutsPage() {
       {selectedPayout && (
         <PayoutDetailPanel
           payout={selectedPayout}
-          processing={processing.has(selectedPayout.id)}
           copied={copied}
           onClose={() => setSelectedPayout(null)}
           onMarkPaid={() => markAsPaid(selectedPayout)}
           onCopy={copyToClipboard}
         />
       )}
-    </div>
+      {payoutToMarkPaid && (
+          <MarkPaidModal
+            docId={payoutToMarkPaid.id}
+            callable="markInspectionAgentPayoutPaid"
+            amount={payoutToMarkPaid.agentEarnings}
+            description={`Agent payout for ${payoutToMarkPaid.propertyTitle}`}
+            onSuccess={() => {
+              // Firestore listener picks up the status flip; just clear local state.
+              if (selectedPayout?.id === payoutToMarkPaid.id) {
+                setSelectedPayout(null);
+              }
+              setPayoutToMarkPaid(null);
+            }}
+            onClose={() => setPayoutToMarkPaid(null)}
+          />
+        )}
+     </div>
   );
 }
 
@@ -401,14 +363,12 @@ export default function PayoutsPage() {
 
 function PayoutCard({
   payout,
-  processing,
   copied,
   onView,
   onMarkPaid,
   onCopy,
 }: {
   payout: Payout;
-  processing: boolean;
   copied: string | null;
   onView: () => void;
   onMarkPaid: () => void;
@@ -509,14 +469,9 @@ function PayoutCard({
           >
             <button
               onClick={onMarkPaid}
-              disabled={processing}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
             >
-              {processing ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <CheckCircle2 size={13} />
-              )}
+              <CheckCircle2 size={13} />
               Mark Paid
             </button>
           </div>
@@ -530,14 +485,12 @@ function PayoutCard({
 
 function PayoutDetailPanel({
   payout,
-  processing,
   copied,
   onClose,
   onMarkPaid,
   onCopy,
 }: {
   payout: Payout;
-  processing: boolean;
   copied: string | null;
   onClose: () => void;
   onMarkPaid: () => void;
@@ -746,14 +699,9 @@ function PayoutDetailPanel({
             <div className="pt-2">
               <button
                 onClick={onMarkPaid}
-                disabled={processing}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50"
               >
-                {processing ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <CheckCircle2 size={16} />
-                )}
+                <CheckCircle2 size={16} />
                 Mark as Paid
               </button>
               <p className="text-xs text-center text-[rgb(var(--text-hint))] mt-2">

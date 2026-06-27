@@ -10,7 +10,7 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
 import {
@@ -63,8 +63,11 @@ interface Property {
   // Ownership doc
   ownershipDocUrl?: string;
   ownershipDocType?: string;
-  ownershipDocStatus: string; // none | pending | verified | rejected
+  ownershipDocStatus: string; // none | pending | verified | rejected | inherited
   ownershipDocRejectionReason?: string;
+  // Building grouping — when set, the ownership doc lives on the building and
+  // is shared across all its units.
+  buildingId?: string;
   // Stats
   viewCount: number;
   inquiryCount: number;
@@ -72,6 +75,46 @@ interface Property {
   inspectionHandler: string;
   assignedAgentName?: string;
   createdAt: Date;
+}
+
+interface Building {
+  id: string;
+  landlordId: string;
+  name: string;
+  address: string;
+  ownershipDocUrl?: string;
+  ownershipDocType?: string;
+  ownershipDocStatus: string; // none | pending | verified | rejected
+  ownershipDocRejectionReason?: string;
+}
+
+// Ownership-doc info that actually governs a listing: the building's shared doc
+// when the unit is grouped, otherwise the unit's own.
+interface DocInfo {
+  status: string;
+  url?: string;
+  type?: string;
+  rejectionReason?: string;
+  building?: Building; // present when the doc is inherited from a building
+}
+
+function resolveDoc(p: Property, buildings: Map<string, Building>): DocInfo {
+  const b = p.buildingId ? buildings.get(p.buildingId) : undefined;
+  if (b) {
+    return {
+      status: b.ownershipDocStatus,
+      url: b.ownershipDocUrl,
+      type: b.ownershipDocType,
+      rejectionReason: b.ownershipDocRejectionReason,
+      building: b,
+    };
+  }
+  return {
+    status: p.ownershipDocStatus,
+    url: p.ownershipDocUrl,
+    type: p.ownershipDocType,
+    rejectionReason: p.ownershipDocRejectionReason,
+  };
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -90,6 +133,7 @@ function capitalize(s: string) {
 
 export default function PropertiesPage() {
   const [properties, setProperties] = useState<Property[]>([]);
+  const [buildings, setBuildings] = useState<Map<string, Building>>(new Map());
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [docStatusFilter, setDocStatusFilter] = useState<DocStatusFilter>("all");
@@ -127,6 +171,7 @@ export default function PropertiesPage() {
           ownershipDocType: data.ownershipDocType,
           ownershipDocStatus: data.ownershipDocStatus || "none",
           ownershipDocRejectionReason: data.ownershipDocRejectionReason,
+          buildingId: data.buildingId,
           viewCount: data.viewCount || 0,
           inquiryCount: data.inquiryCount || 0,
           inspectionHandler: data.inspectionHandler || "self",
@@ -137,13 +182,39 @@ export default function PropertiesPage() {
       setProperties(parsed);
       setLoading(false);
     });
-    return () => unsub();
+
+    // Buildings carry the shared ownership doc for grouped units.
+    const unsubBuildings = onSnapshot(
+      collection(db, "buildings"),
+      (snap) => {
+        const map = new Map<string, Building>();
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          map.set(d.id, {
+            id: d.id,
+            landlordId: data.landlordId || "",
+            name: data.name || "Building",
+            address: data.address || "",
+            ownershipDocUrl: data.ownershipDocUrl,
+            ownershipDocType: data.ownershipDocType,
+            ownershipDocStatus: data.ownershipDocStatus || "none",
+            ownershipDocRejectionReason: data.ownershipDocRejectionReason,
+          });
+        });
+        setBuildings(map);
+      }
+    );
+
+    return () => {
+      unsub();
+      unsubBuildings();
+    };
   }, []);
 
   // ── Counts ─────────────────────────────────────────────────────────────────
 
   const pendingDocCount = properties.filter(
-    (p) => p.ownershipDocStatus === "pending"
+    (p) => resolveDoc(p, buildings).status === "pending"
   ).length;
   const totalCount = properties.length;
   const availableCount = properties.filter((p) => p.isAvailable).length;
@@ -153,7 +224,10 @@ export default function PropertiesPage() {
   const filtered = useMemo(() => {
     return properties.filter((p) => {
       if (typeFilter !== "all" && p.propertyType !== typeFilter) return false;
-      if (docStatusFilter !== "all" && p.ownershipDocStatus !== docStatusFilter)
+      if (
+        docStatusFilter !== "all" &&
+        resolveDoc(p, buildings).status !== docStatusFilter
+      )
         return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -166,20 +240,37 @@ export default function PropertiesPage() {
       }
       return true;
     });
-  }, [properties, typeFilter, docStatusFilter, searchQuery]);
+  }, [properties, buildings, typeFilter, docStatusFilter, searchQuery]);
 
-  // ── Doc actions ────────────────────────────────────────────────────────────
+  // ── Doc actions ──────────────────────────────────────────────────────────
+  // For a grouped unit the C of O lives on the building: verifying/rejecting
+  // targets the building doc (covering EVERY unit), and the unit being reviewed
+  // is published/hidden alongside. Standalone listings keep their own doc.
 
   const verifyDoc = async (property: Property) => {
     if (processing.has(property.id)) return;
     setProcessing((s) => new Set(s).add(property.id));
     try {
-      await updateDoc(doc(db, "properties", property.id), {
-        ownershipDocStatus: "verified",
-        isVerified: true,
-        isAvailable: true, // Approving doc = publishing the listing
-        updatedAt: serverTimestamp(),
-      });
+      const b = property.buildingId ? buildings.get(property.buildingId) : undefined;
+      if (b) {
+        await updateDoc(doc(db, "buildings", b.id), {
+          ownershipDocStatus: "verified",
+          ownershipDocRejectionReason: "",
+          updatedAt: serverTimestamp(),
+        });
+        await updateDoc(doc(db, "properties", property.id), {
+          isVerified: true,
+          isAvailable: true, // publish the reviewed unit
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await updateDoc(doc(db, "properties", property.id), {
+          ownershipDocStatus: "verified",
+          isVerified: true,
+          isAvailable: true, // Approving doc = publishing the listing
+          updatedAt: serverTimestamp(),
+        });
+      }
       if (selectedProperty?.id === property.id) setSelectedProperty(null);
     } finally {
       setProcessing((s) => { const n = new Set(s); n.delete(property.id); return n; });
@@ -190,11 +281,41 @@ export default function PropertiesPage() {
     if (processing.has(property.id)) return;
     setProcessing((s) => new Set(s).add(property.id));
     try {
+      const b = property.buildingId ? buildings.get(property.buildingId) : undefined;
+      if (b) {
+        await updateDoc(doc(db, "buildings", b.id), {
+          ownershipDocStatus: "rejected",
+          ownershipDocRejectionReason: reason,
+          updatedAt: serverTimestamp(),
+        });
+        await updateDoc(doc(db, "properties", property.id), {
+          isAvailable: false,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await updateDoc(doc(db, "properties", property.id), {
+          ownershipDocStatus: "rejected",
+          isVerified: false,
+          isAvailable: false, // Rejected = stays hidden
+          ownershipDocRejectionReason: reason,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      if (selectedProperty?.id === property.id) setSelectedProperty(null);
+    } finally {
+      setProcessing((s) => { const n = new Set(s); n.delete(property.id); return n; });
+    }
+  };
+
+  // Publish a grouped unit whose building C of O is already verified — ownership
+  // is settled, this is the per-unit listing approval.
+  const publishUnit = async (property: Property) => {
+    if (processing.has(property.id)) return;
+    setProcessing((s) => new Set(s).add(property.id));
+    try {
       await updateDoc(doc(db, "properties", property.id), {
-        ownershipDocStatus: "rejected",
-        isVerified: false,
-        isAvailable: false, // Rejected = stays hidden
-        ownershipDocRejectionReason: reason,
+        isVerified: true,
+        isAvailable: true,
         updatedAt: serverTimestamp(),
       });
       if (selectedProperty?.id === property.id) setSelectedProperty(null);
@@ -313,6 +434,7 @@ export default function PropertiesPage() {
             <PropertyCard
               key={property.id}
               property={property}
+              docInfo={resolveDoc(property, buildings)}
               processing={processing.has(property.id)}
               onView={() => setSelectedProperty(property)}
               onVerifyDoc={() => verifyDoc(property)}
@@ -325,10 +447,12 @@ export default function PropertiesPage() {
       {selectedProperty && (
         <PropertyDetailPanel
           property={selectedProperty}
+          docInfo={resolveDoc(selectedProperty, buildings)}
           processing={processing.has(selectedProperty.id)}
           onClose={() => setSelectedProperty(null)}
           onVerifyDoc={() => verifyDoc(selectedProperty)}
           onRejectDoc={(reason) => rejectDoc(selectedProperty, reason)}
+          onPublish={() => publishUnit(selectedProperty)}
         />
       )}
     </div>
@@ -339,16 +463,18 @@ export default function PropertiesPage() {
 
 function PropertyCard({
   property,
+  docInfo,
   processing,
   onView,
   onVerifyDoc,
 }: {
   property: Property;
+  docInfo: DocInfo;
   processing: boolean;
   onView: () => void;
   onVerifyDoc: () => void;
 }) {
-  const hasPendingDoc = property.ownershipDocStatus === "pending";
+  const hasPendingDoc = docInfo.status === "pending";
 
   return (
     <div
@@ -373,10 +499,15 @@ function PropertyCard({
         )}
         {/* Badges overlaid on image */}
         <div className="absolute top-2 left-2 flex gap-1.5">
-          <AvailabilityBadge available={property.isAvailable} docStatus={property.ownershipDocStatus} />
+          <AvailabilityBadge available={property.isAvailable} docStatus={docInfo.status} />
         </div>
-        <div className="absolute top-2 right-2">
-          <DocStatusBadge status={property.ownershipDocStatus} />
+        <div className="absolute top-2 right-2 flex gap-1.5">
+          {docInfo.building && (
+            <span className="badge bg-black/50 text-white border-0 gap-1 text-[10px] backdrop-blur-sm">
+              <Building2 size={10} /> In building
+            </span>
+          )}
+          <DocStatusBadge status={docInfo.status} />
         </div>
       </div>
 
@@ -432,7 +563,11 @@ function PropertyCard({
             className="flex items-center gap-2 pt-1 border-t border-[rgb(var(--border))]"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-xs text-amber-500 flex-1">Doc pending review</p>
+            <p className="text-xs text-amber-500 flex-1">
+              {docInfo.building
+                ? `Building C of O pending · ${docInfo.building.name}`
+                : "Doc pending review"}
+            </p>
             <button
               onClick={onVerifyDoc}
               disabled={processing}
@@ -459,21 +594,60 @@ function PropertyCard({
 
 function PropertyDetailPanel({
   property,
+  docInfo,
   processing,
   onClose,
   onVerifyDoc,
   onRejectDoc,
+  onPublish,
 }: {
   property: Property;
+  docInfo: DocInfo;
   processing: boolean;
   onClose: () => void;
   onVerifyDoc: () => void;
   onRejectDoc: (reason: string) => void;
+  onPublish: () => void;
 }) {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [loadingDoc, setLoadingDoc] = useState(false);
 
-  const isPendingDoc = property.ownershipDocStatus === "pending";
+  // Ownership docs are private. New ones are Storage paths streamed through the
+  // authenticated route (token never in a URL); legacy Cloudinary docs are
+  // public http URLs opened directly.
+  const openDoc = async (urlOrPath: string) => {
+    if (/^https?:\/\//i.test(urlOrPath)) {
+      window.open(urlOrPath, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setLoadingDoc(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      const res = await fetch(
+        `/api/verification-image?path=${encodeURIComponent(urlOrPath)}`,
+        { headers: { Authorization: `Bearer ${idToken}` } }
+      );
+      if (!res.ok) {
+        console.error("Failed to load document:", res.status);
+        return;
+      }
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error loading document:", err);
+    } finally {
+      setLoadingDoc(false);
+    }
+  };
+
+  const isPendingDoc = docInfo.status === "pending";
+  const grouped = !!docInfo.building;
+  // Grouped unit whose building C of O is already verified but which hasn't
+  // been published yet — ownership is settled, only per-unit approval remains.
+  const needsPublish =
+    grouped && docInfo.status === "verified" && !property.isAvailable;
 
   return (
     <>
@@ -506,8 +680,13 @@ function PropertyDetailPanel({
               <span className="badge bg-[rgb(var(--background))] text-[rgb(var(--text-secondary))] border border-[rgb(var(--border))]">
                 {property.propertyType === "selfContain" ? "Self Contain" : capitalize(property.propertyType)}
               </span>
-              <AvailabilityBadge available={property.isAvailable} docStatus={property.ownershipDocStatus} />
-              <DocStatusBadge status={property.ownershipDocStatus} />
+              <AvailabilityBadge available={property.isAvailable} docStatus={docInfo.status} />
+              <DocStatusBadge status={docInfo.status} />
+              {grouped && (
+                <span className="badge bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))] border border-[rgb(var(--brand))]/20 gap-1 text-[10px]">
+                  <Building2 size={10} /> {docInfo.building!.name}
+                </span>
+              )}
             </div>
           </div>
 
@@ -554,7 +733,18 @@ function PropertyDetailPanel({
             <h4 className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
               Ownership Document
             </h4>
-            {property.ownershipDocStatus === "none" || !property.ownershipDocUrl ? (
+
+            {grouped && (
+              <div className="p-3 rounded-xl bg-[rgb(var(--brand))]/5 border border-[rgb(var(--brand))]/20 flex items-start gap-2">
+                <Building2 size={14} className="text-[rgb(var(--brand))] mt-0.5 shrink-0" />
+                <p className="text-xs text-[rgb(var(--text-secondary))]">
+                  Shared C of O for <span className="font-medium text-[rgb(var(--text-primary))]">{docInfo.building!.name}</span>.
+                  Verifying or rejecting it applies to <span className="font-medium">every unit</span> in this building.
+                </p>
+              </div>
+            )}
+
+            {docInfo.status === "none" || !docInfo.url ? (
               <div className="p-4 rounded-xl bg-[rgb(var(--background))] border border-[rgb(var(--border))] text-center">
                 <FileText size={24} className="mx-auto text-[rgb(var(--text-hint))] mb-2" />
                 <p className="text-sm text-[rgb(var(--text-hint))]">No document uploaded</p>
@@ -564,31 +754,42 @@ function PropertyDetailPanel({
                 <div className="p-3 rounded-xl bg-[rgb(var(--background))] border border-[rgb(var(--border))]">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-[rgb(var(--text-secondary))]">
-                      {property.ownershipDocType === "c_of_o" ? "Certificate of Occupancy" :
-                       property.ownershipDocType === "deed" ? "Deed of Assignment" : "Property Document"}
+                      {docInfo.type === "c_of_o" ? "Certificate of Occupancy" :
+                       docInfo.type === "deed" ? "Deed of Assignment" : "Property Document"}
                     </span>
-                    <DocStatusBadge status={property.ownershipDocStatus} />
+                    <DocStatusBadge status={docInfo.status} />
                   </div>
-                  <a
-                    href={property.ownershipDocUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-[rgb(var(--brand))] hover:underline"
+                  <button
+                    onClick={() => docInfo.url && openDoc(docInfo.url)}
+                    disabled={loadingDoc}
+                    className="flex items-center gap-1.5 text-xs text-[rgb(var(--brand))] hover:underline disabled:opacity-50"
                   >
-                    <ExternalLink size={12} />
+                    {loadingDoc ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
                     Open document
-                  </a>
+                  </button>
                 </div>
 
                 {/* Rejection reason */}
-                {property.ownershipDocStatus === "rejected" && property.ownershipDocRejectionReason && (
+                {docInfo.status === "rejected" && docInfo.rejectionReason && (
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
                     <div className="flex items-center gap-2 mb-1">
                       <AlertTriangle size={13} className="text-red-500" />
                       <span className="text-xs font-semibold text-red-500">Rejection Reason</span>
                     </div>
-                    <p className="text-sm text-[rgb(var(--text-secondary))]">{property.ownershipDocRejectionReason}</p>
+                    <p className="text-sm text-[rgb(var(--text-secondary))]">{docInfo.rejectionReason}</p>
                   </div>
+                )}
+
+                {/* Per-unit publish: building doc already verified, unit hidden */}
+                {needsPublish && (
+                  <button
+                    onClick={onPublish}
+                    disabled={processing}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                  >
+                    {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    Publish this unit
+                  </button>
                 )}
 
                 {/* Actions for pending docs */}
@@ -600,14 +801,14 @@ function PropertyDetailPanel({
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50"
                     >
                       {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                      Approve & Publish
+                      {grouped ? "Verify C of O & Publish unit" : "Approve & Publish"}
                     </button>
                     <button
                       onClick={() => setShowRejectForm(true)}
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/30 text-red-500 text-sm font-semibold hover:bg-red-500/5 transition-colors"
                     >
                       <XCircle size={14} />
-                      Reject Doc
+                      {grouped ? "Reject C of O" : "Reject Doc"}
                     </button>
                   </div>
                 )}

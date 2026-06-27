@@ -1,37 +1,12 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  deleteDoc,
-  doc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db, ADMIN_UID } from "@/lib/firebase";
+import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
-import {
-  Megaphone,
-  Plus,
-  X,
-  Loader2,
-  Trash2,
-  Users,
-  User,
-  Search,
-  ChevronDown,
-  ChevronUp,
-  Globe,
-  UserCheck,
-  AlertTriangle,
-  Info,
-  CheckCircle2,
-  Bell,
-} from "lucide-react";
+import { Megaphone, Plus, X, Loader2, Trash2, Users, User, Search, ChevronDown, ChevronUp, Globe, UserCheck, AlertTriangle, Info, CheckCircle2, Bell, } from "lucide-react";
 import { collection as col, getDocs } from "firebase/firestore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -273,6 +248,7 @@ function TargetBadge({ targetType, targetNames }: { targetType: TargetType; targ
 // ─── Composer Modal ───────────────────────────────────────────────────────────
 
 function AnnouncementComposer({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [type, setType] = useState<AnnouncementType>("info");
@@ -292,7 +268,7 @@ function AnnouncementComposer({ onClose }: { onClose: () => void }) {
     setUsersLoading(true);
     getDocs(query(col(db, "users"), orderBy("fullName"))).then((snap) => {
       const users: SimpleUser[] = snap.docs
-        .filter((d) => d.id !== ADMIN_UID)
+        .filter((d) => d.id !== user?.uid)
         .map((d) => ({
           id: d.id,
           fullName: d.data().fullName || "Unknown",
@@ -337,7 +313,7 @@ function AnnouncementComposer({ onClose }: { onClose: () => void }) {
         targetIds: targetType === "specific" ? selectedUsers.map((u) => u.id) : [],
         targetNames: targetType === "specific" ? selectedUsers.map((u) => u.fullName) : [],
         createdAt: serverTimestamp(),
-        createdBy: ADMIN_UID,
+        createdBy: user?.uid ?? "",
         isRead: false,
       });
       onClose();

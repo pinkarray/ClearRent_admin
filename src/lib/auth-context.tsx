@@ -7,7 +7,7 @@ import {
   signOut as fbSignOut,
   User,
 } from "firebase/auth";
-import { auth, ADMIN_UID } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 
 interface AuthContextType {
   user: User | null;
@@ -27,10 +27,9 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-
-  const isAdmin = user?.uid === ADMIN_UID;
 
   // Track hydration
   useEffect(() => {
@@ -41,8 +40,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Don't subscribe until client-side mounted
     if (!mounted) return;
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      if (firebaseUser) {
+        // Force-refresh so a freshly-granted claim takes effect without
+        // waiting for the hourly token rotation.
+        try {
+          const result = await firebaseUser.getIdTokenResult(true);
+          const claims = result.claims;
+          setIsAdmin(claims.superAdmin === true || claims.admin === true);
+        } catch {
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
+      }
       setLoading(false);
     });
     return unsubscribe;
@@ -51,7 +63,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
-      if (result.user.uid !== ADMIN_UID) {
+      // Force-refresh the token so any claim set within the last hour is visible.
+      const tokenResult = await result.user.getIdTokenResult(true);
+      const claims = tokenResult.claims;
+      const hasAdminClaim = claims.superAdmin === true || claims.admin === true;
+      if (!hasAdminClaim) {
         await fbSignOut(auth);
         return { success: false, error: "Access denied. Admin accounts only." };
       }
