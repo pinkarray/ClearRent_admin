@@ -27,6 +27,7 @@ import {
   ClipboardCheck,
   RotateCcw,
   CalendarClock,
+  ShieldAlert,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AttentionBanner } from "@/components/layout/attention-banner";
@@ -42,6 +43,7 @@ const navItems = [
   { label: "Rent Reviews", href: "/dashboard/rent-reviews", icon: TrendingUp },
   { label: "Inspection Reviews", href: "/dashboard/inspection-reviews", icon: ClipboardCheck },
   { label: "Inspection Day", href: "/dashboard/inspections", icon: CalendarClock },
+  { label: "Collusion Watch", href: "/dashboard/collusion", icon: ShieldAlert },
   { label: "Properties", href: "/dashboard/properties", icon: Building2 },
   { label: "Issues", href: "/dashboard/issues", icon: AlertTriangle },
   { label: "Area Requests", href: "/dashboard/unknown-areas", icon: MapPin },

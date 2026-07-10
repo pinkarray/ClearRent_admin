@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(mv .claude/settings.json .claude/settings.local.json)",
+      "Bash(git commit -q -m ' *)"
+    ]
+  }
+}
