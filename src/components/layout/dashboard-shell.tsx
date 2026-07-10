@@ -102,9 +102,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className={cn("flex items-center h-16 px-4 border-b border-[rgb(var(--border))]", collapsed && "justify-center")}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[rgb(var(--brand))] flex items-center justify-center shrink-0">
-              <span className="text-white font-display font-bold text-sm">CR</span>
-            </div>
+            <img src="/logos/clearrent_mark_color.svg" alt="ClearRent" className="w-9 h-9 shrink-0" />
             {!collapsed && (
               <div className="overflow-hidden">
                 <h2 className="font-display font-bold text-sm text-[rgb(var(--text-primary))] leading-tight">ClearRent</h2>
@@ -201,9 +199,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Menu size={20} className="text-[rgb(var(--text-primary))]" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[rgb(var(--brand))] flex items-center justify-center">
-              <span className="text-white font-display font-bold text-xs">CR</span>
-            </div>
+            <img src="/logos/clearrent_mark_color.svg" alt="ClearRent" className="w-7 h-7" />
             <span className="font-display font-bold text-sm text-[rgb(var(--text-primary))]">ClearRent</span>
           </div>
           <div className="w-10" /> {/* Spacer for centering */}

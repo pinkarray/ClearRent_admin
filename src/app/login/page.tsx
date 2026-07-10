@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { Shield, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const { user, isAdmin, loading, signIn } = useAuth();
@@ -49,9 +49,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo area */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[rgb(var(--brand))]/10 mb-4">
-            <Shield className="w-8 h-8 text-[rgb(var(--brand))]" />
-          </div>
+          <img
+            src="/logos/clearrent_mark_color.svg"
+            alt="ClearRent"
+            className="w-16 h-16 mx-auto mb-4"
+          />
           <h1 className="text-2xl font-display font-bold text-[rgb(var(--text-primary))]">
             ClearRent Admin
           </h1>
