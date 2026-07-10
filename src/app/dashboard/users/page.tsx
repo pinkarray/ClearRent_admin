@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { ClearRentUser, parseTimestamp } from "@/types";
 import { cn, capitalize, timeAgo } from "@/lib/utils";
-import { Search, Users, ShieldCheck, ShieldAlert, ShieldOff, Clock, MoreVertical, Mail, Phone, MapPin, Star, Building2, Loader2, X, AlertTriangle } from "lucide-react";
+import { Search, Users, ShieldCheck, ShieldAlert, ShieldOff, Clock, MoreVertical, Mail, Phone, MapPin, Star, Building2, Loader2, X, AlertTriangle, Network } from "lucide-react";
 
 type FilterType = "all" | "landlord" | "tenant" | "agent";
 type StatusFilter = "all" | "verified" | "pending" | "rejected" | "none";
@@ -150,6 +151,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function UserDetailPanel({ user, onClose }: { user: ClearRentUser; onClose: () => void }) {
+  const router = useRouter();
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
@@ -163,6 +165,13 @@ function UserDetailPanel({ user, onClose }: { user: ClearRentUser; onClose: () =
             <UserAvatar user={user} size={56} />
             <div><h3 className="text-lg font-semibold text-[rgb(var(--text-primary))]">{user.fullName}</h3><div className="flex items-center gap-2 mt-1"><TypeBadge type={user.accountType} /><StatusBadge status={user.verificationStatus || "none"} /></div></div>
           </div>
+          <button
+            onClick={() => router.push(`/dashboard/users/${user.id}`)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[rgb(var(--brand))] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Network size={15} />
+            View full profile — properties, tenancies, inspections
+          </button>
           <div className="space-y-3">
             <h4 className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">Contact</h4>
             <DetailRow icon={Mail} label="Email" value={user.email} />

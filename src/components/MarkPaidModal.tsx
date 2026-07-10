@@ -17,7 +17,7 @@
 
 import { useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { X, AlertCircle, CheckCircle2, Copy } from "lucide-react";
 import { functions } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +36,8 @@ interface MarkPaidModalProps {
   amount: number;
   /** Short label of what's being paid (e.g. "Agent payout for 3 Bedroom Duplex"). */
   description: string;
+  /** Beneficiary bank details, shown so the admin sees exactly who to pay. */
+  bank?: { bankName?: string; accountName?: string; accountNumber?: string };
   /** Called when the CF returns success. Parent should refetch / clear state. */
   onSuccess: () => void;
   /** Called when the user dismisses without confirming. */
@@ -57,6 +59,7 @@ export function MarkPaidModal({
   callable,
   amount,
   description,
+  bank,
   onSuccess,
   onClose,
 }: MarkPaidModalProps) {
@@ -64,6 +67,7 @@ export function MarkPaidModal({
   const [paymentNote, setPaymentNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const trimmedRef = paymentReference.trim();
   const canSubmit = trimmedRef.length > 0 && !submitting;
@@ -143,6 +147,54 @@ export function MarkPaidModal({
                 {formatNaira(amount)}
               </p>
             </div>
+
+            {/* Beneficiary bank — exactly who this money goes to */}
+            {bank && (bank.accountNumber || bank.accountName) ? (
+              <div className="bg-[rgb(var(--background))] rounded-xl p-4 space-y-1.5">
+                <p className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
+                  Send to
+                </p>
+                {bank.accountName && (
+                  <p className="text-sm font-semibold text-[rgb(var(--text-primary))]">
+                    {bank.accountName}
+                  </p>
+                )}
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-[rgb(var(--text-secondary))]">
+                    {bank.bankName || "Bank —"}
+                    {bank.accountNumber ? (
+                      <span style={{ fontFamily: "Roboto, monospace" }}>
+                        {" "}· {bank.accountNumber}
+                      </span>
+                    ) : null}
+                  </p>
+                  {bank.accountNumber && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(bank.accountNumber!);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="text-[rgb(var(--text-hint))] hover:text-[rgb(var(--brand))] transition-colors"
+                    >
+                      {copied ? (
+                        <CheckCircle2 size={13} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={13} />
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  No bank details on file — confirm with the recipient before sending.
+                </p>
+              </div>
+            )}
 
             {/* Payment reference (required) */}
             <div className="space-y-2">

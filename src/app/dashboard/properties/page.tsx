@@ -74,6 +74,8 @@ interface Property {
   // Inspection
   inspectionHandler: string;
   assignedAgentName?: string;
+  // Readiness gate (Phase 2): vetted by the handler ⇒ bookable for inspection.
+  readyForInspections: boolean;
   createdAt: Date;
 }
 
@@ -176,6 +178,7 @@ export default function PropertiesPage() {
           inquiryCount: data.inquiryCount || 0,
           inspectionHandler: data.inspectionHandler || "self",
           assignedAgentName: data.assignedAgentName,
+          readyForInspections: data.readyForInspections === true,
           createdAt: parseTimestamp(data.createdAt) || new Date(),
         };
       });
@@ -682,6 +685,15 @@ function PropertyDetailPanel({
               </span>
               <AvailabilityBadge available={property.isAvailable} docStatus={docInfo.status} />
               <DocStatusBadge status={docInfo.status} />
+              {property.readyForInspections ? (
+                <span className="badge-success gap-1 text-[10px]">
+                  <CheckCircle2 size={10} /> Vetted
+                </span>
+              ) : (
+                <span className="badge-warning gap-1 text-[10px]">
+                  <Clock size={10} /> Not vetted
+                </span>
+              )}
               {grouped && (
                 <span className="badge bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))] border border-[rgb(var(--brand))]/20 gap-1 text-[10px]">
                   <Building2 size={10} /> {docInfo.building!.name}

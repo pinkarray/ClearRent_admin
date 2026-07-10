@@ -345,6 +345,7 @@ export default function PayoutsPage() {
             callable="markInspectionAgentPayoutPaid"
             amount={payoutToMarkPaid.agentEarnings}
             description={`Agent payout for ${payoutToMarkPaid.propertyTitle}`}
+            bank={payoutToMarkPaid.bankDetails}
             onSuccess={() => {
               // Firestore listener picks up the status flip; just clear local state.
               if (selectedPayout?.id === payoutToMarkPaid.id) {

@@ -8,6 +8,7 @@ import {
   FileCheck,
   ClipboardCheck,
   RotateCcw,
+  TrendingUp,
   ArrowRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -31,6 +32,8 @@ export function AttentionBanner() {
   const [inspectionReviews, setInspectionReviews] = useState(0);
   // Refund records awaiting payout (inspection refunds → refunds collection).
   const [pendingRefunds, setPendingRefunds] = useState(0);
+  // Landlord rent-review / rent-change requests awaiting an admin decision.
+  const [pendingRentReviews, setPendingRentReviews] = useState(0);
 
   useEffect(() => {
     const q = query(
@@ -65,6 +68,17 @@ export function AttentionBanner() {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    const q = query(
+      collection(db, "rent_review_requests"),
+      where("status", "==", "pending")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setPendingRentReviews(snap.size);
+    });
+    return () => unsub();
+  }, []);
+
   const hasItems =
     !stats.loading &&
     (stats.pendingVerifications > 0 ||
@@ -72,7 +86,8 @@ export function AttentionBanner() {
       stats.pendingPayments > 0 ||
       pendingPropertyDocs > 0 ||
       inspectionReviews > 0 ||
-      pendingRefunds > 0);
+      pendingRefunds > 0 ||
+      pendingRentReviews > 0);
 
   if (!hasItems) return null;
 
@@ -134,6 +149,16 @@ export function AttentionBanner() {
               >
                 <RotateCcw size={14} />
                 {pendingRefunds} pending refund{pendingRefunds !== 1 ? "s" : ""}
+                <ArrowRight size={12} />
+              </button>
+            )}
+            {pendingRentReviews > 0 && (
+              <button
+                onClick={() => router.push("/dashboard/rent-reviews")}
+                className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:underline"
+              >
+                <TrendingUp size={14} />
+                {pendingRentReviews} rent review{pendingRentReviews !== 1 ? "s" : ""}
                 <ArrowRight size={12} />
               </button>
             )}

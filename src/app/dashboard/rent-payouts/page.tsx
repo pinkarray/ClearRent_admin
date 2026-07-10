@@ -397,6 +397,11 @@ export default function RentPayoutsPage() {
               ? `Landlord rent payout for ${payoutToMark.payout.propertyTitle}`
               : `Agent commission for ${payoutToMark.payout.propertyTitle}`
           }
+          bank={
+            payoutToMark.branch === "landlord"
+              ? payoutToMark.payout.landlordBank
+              : payoutToMark.payout.agentBank
+          }
           onSuccess={() => {
             // Firestore listener picks up the status flip; just clear local state.
             if (selectedPayout?.id === payoutToMark.payout.id) {

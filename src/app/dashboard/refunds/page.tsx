@@ -288,6 +288,7 @@ export default function RefundsPage() {
           callable="markRefundPaid"
           amount={refundToMark.amount}
           description={`Refund to ${refundToMark.beneficiaryName || "beneficiary"} for ${refundToMark.propertyTitle}`}
+          bank={refundToMark.beneficiaryBank}
           onSuccess={() => {
             // Firestore listener picks up the status flip; just clear local state.
             setRefundToMark(null);
