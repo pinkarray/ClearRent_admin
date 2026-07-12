@@ -53,6 +53,7 @@ const TARGET_LABELS: Record<TargetType, string> = {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AnnouncementsPage() {
+  const { canWrite } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showComposer, setShowComposer] = useState(false);
@@ -83,6 +84,7 @@ export default function AnnouncementsPage() {
   }, []);
 
   const handleDelete = async (id: string) => {
+    if (!canWrite) return;
     if (!confirm("Delete this announcement? Users will no longer see it.")) return;
     setDeleting((s) => new Set(s).add(id));
     try {
@@ -104,13 +106,15 @@ export default function AnnouncementsPage() {
             Broadcast messages to users — shown in their notification feed on mobile.
           </p>
         </div>
-        <button
-          onClick={() => setShowComposer(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[rgb(var(--brand))] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-        >
-          <Plus size={16} />
-          New Announcement
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowComposer(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[rgb(var(--brand))] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+          >
+            <Plus size={16} />
+            New Announcement
+          </button>
+        )}
       </div>
 
       {/* List */}
@@ -125,12 +129,14 @@ export default function AnnouncementsPage() {
           <p className="text-sm text-[rgb(var(--text-hint))] mt-1">
             Create one to notify users on the mobile app.
           </p>
-          <button
-            onClick={() => setShowComposer(true)}
-            className="mt-4 px-4 py-2 rounded-xl bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))] text-sm font-semibold hover:bg-[rgb(var(--brand))]/20 transition-colors"
-          >
-            Create announcement
-          </button>
+          {canWrite && (
+            <button
+              onClick={() => setShowComposer(true)}
+              className="mt-4 px-4 py-2 rounded-xl bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))] text-sm font-semibold hover:bg-[rgb(var(--brand))]/20 transition-colors"
+            >
+              Create announcement
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -138,6 +144,7 @@ export default function AnnouncementsPage() {
             <AnnouncementCard
               key={a.id}
               announcement={a}
+              canWrite={canWrite}
               deleting={deleting.has(a.id)}
               onDelete={() => handleDelete(a.id)}
             />
@@ -157,10 +164,12 @@ export default function AnnouncementsPage() {
 
 function AnnouncementCard({
   announcement: a,
+  canWrite,
   deleting,
   onDelete,
 }: {
   announcement: Announcement;
+  canWrite: boolean;
   deleting: boolean;
   onDelete: () => void;
 }) {
@@ -196,13 +205,15 @@ function AnnouncementCard({
               >
                 {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
               </button>
-              <button
-                onClick={onDelete}
-                disabled={deleting}
-                className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-[rgb(var(--text-hint))] hover:text-red-500 disabled:opacity-50"
-              >
-                {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-              </button>
+              {canWrite && (
+                <button
+                  onClick={onDelete}
+                  disabled={deleting}
+                  className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-[rgb(var(--text-hint))] hover:text-red-500 disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                </button>
+              )}
             </div>
           </div>
 
@@ -248,7 +259,7 @@ function TargetBadge({ targetType, targetNames }: { targetType: TargetType; targ
 // ─── Composer Modal ───────────────────────────────────────────────────────────
 
 function AnnouncementComposer({ onClose }: { onClose: () => void }) {
-  const { user } = useAuth();
+  const { user, canWrite } = useAuth();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [type, setType] = useState<AnnouncementType>("info");
@@ -302,7 +313,7 @@ function AnnouncementComposer({ onClose }: { onClose: () => void }) {
     (targetType !== "specific" || selectedUsers.length > 0);
 
   const handleSubmit = async () => {
-    if (!canSubmit || submitting) return;
+    if (!canWrite || !canSubmit || submitting) return;
     setSubmitting(true);
     try {
       await addDoc(collection(db, "announcements"), {

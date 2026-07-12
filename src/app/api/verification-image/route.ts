@@ -2,9 +2,9 @@ import { NextRequest } from "next/server";
 import { getAdminAuth, getAdminStorage } from "@/lib/firebase-admin";
 // Streams a private verification document from Firebase Storage.
 // Auth: requires a valid Firebase ID token (Authorization: Bearer <token>)
-// belonging to an admin (admin OR superAdmin custom claim — mirrors
-// isAdmin() in firestore.rules / storage.rules). The image bytes are
-// streamed through this route; no public or signed URL is ever exposed.
+// belonging to an admin (admin OR superAdmin) or a read-only viewer — mirrors
+// canRead() in firestore.rules. Viewing is a read, so read-only accounts are
+// allowed; the bytes are streamed through this route (no public/signed URL).
 export async function GET(req: NextRequest) {
   // 1. Verify the caller's ID token.
   const authHeader = req.headers.get("authorization") || "";
@@ -22,8 +22,13 @@ export async function GET(req: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // 2. Admin gate — same claim model as Firestore/Storage rules.
-  if (claims.admin !== true && claims.superAdmin !== true) {
+  // 2. Read gate — same model as canRead() in Firestore rules: full admins
+  //    (admin/superAdmin) or read-only viewers. Viewing a doc is a read.
+  if (
+    claims.admin !== true &&
+    claims.superAdmin !== true &&
+    claims.viewer !== true
+  ) {
     return new Response("Forbidden", { status: 403 });
   }
 

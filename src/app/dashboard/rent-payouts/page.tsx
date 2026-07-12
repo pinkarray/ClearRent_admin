@@ -8,6 +8,7 @@ import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
 import { Banknote, Search, X, Loader2, CheckCircle2, Clock, Copy, Phone, User, Building2, AlertTriangle, Landmark, UserCheck, History, ExternalLink,} from "lucide-react";
 import { MarkPaidModal } from "@/components/MarkPaidModal";
+import { useAuth } from "@/lib/auth-context";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TabFilter = "landlord" | "agent" | "paid";
@@ -438,6 +439,7 @@ function RentPayoutCard({
   const isLandlordTab = tabFilter === "landlord";
   const recipientName = isLandlordTab ? payout.landlordName : (payout.agentName || "Agent");
   const amount = isLandlordTab ? payout.landlordPayout : payout.agentPayout;
+  const { canWrite } = useAuth();
   const bank = isLandlordTab ? payout.landlordBank : payout.agentBank;
   const isPending = isLandlordTab
     ? payout.landlordPayoutStatus === "pending"
@@ -522,7 +524,7 @@ function RentPayoutCard({
         </div>
 
         {/* Quick action */}
-        {isPending && (
+        {canWrite && isPending && (
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={isLandlordTab ? onMarkLandlordPaid : onMarkAgentPaid}

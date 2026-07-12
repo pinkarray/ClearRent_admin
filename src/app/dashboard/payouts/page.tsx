@@ -8,6 +8,7 @@ import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
 import { Wallet, Search, X, Loader2, CheckCircle2, Clock, Copy, Phone, User, Building2, AlertTriangle, Landmark, UserCheck, History, ExternalLink,} from "lucide-react";
 import { MarkPaidModal } from "@/components/MarkPaidModal";
+import { useAuth } from "@/lib/auth-context";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TabFilter = "pending" | "paid";
@@ -375,6 +376,7 @@ function PayoutCard({
   onMarkPaid: () => void;
   onCopy: (text: string, key: string) => void;
 }) {
+  const { canWrite } = useAuth();
   const isPending = payout.agentPayoutStatus === "pending";
   const accountNumber = payout.bankDetails?.accountNumber;
   const copyKey = `${payout.id}-acct`;
@@ -463,7 +465,7 @@ function PayoutCard({
         </div>
 
         {/* Actions */}
-        {isPending && (
+        {canWrite && isPending && (
           <div
             className="shrink-0"
             onClick={(e) => e.stopPropagation()}
@@ -497,6 +499,7 @@ function PayoutDetailPanel({
   onMarkPaid: () => void;
   onCopy: (text: string, key: string) => void;
 }) {
+  const { canWrite } = useAuth();
   const isPending = payout.agentPayoutStatus === "pending";
 
   const whatsappHref = payout.handlerPhone
@@ -696,7 +699,7 @@ function PayoutDetailPanel({
           )}
 
           {/* Mark paid action */}
-          {isPending && (
+          {canWrite && isPending && (
             <div className="pt-2">
               <button
                 onClick={onMarkPaid}

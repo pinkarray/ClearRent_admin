@@ -8,6 +8,7 @@ import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
 import { RotateCcw, Search, X, Loader2, CheckCircle2, Clock, Copy, AlertTriangle, Landmark, History } from "lucide-react";
 import { MarkPaidModal } from "@/components/MarkPaidModal";
+import { useAuth } from "@/lib/auth-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -313,6 +314,7 @@ function RefundCard({
   onMarkPaid: () => void;
   onCopy: (text: string, key: string) => void;
 }) {
+  const { canWrite } = useAuth();
   const isPending = refund.status === "pending";
   const bank = refund.beneficiaryBank;
   const copyKey = `${refund.id}-acct`;
@@ -393,7 +395,7 @@ function RefundCard({
         </div>
 
         {/* Quick action */}
-        {isPending && (
+        {canWrite && isPending && (
           <div className="shrink-0">
             <button
               onClick={onMarkPaid}

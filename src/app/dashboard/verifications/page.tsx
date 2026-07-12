@@ -13,6 +13,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { parseTimestamp } from "@/types";
 import { cn, capitalize, timeAgo } from "@/lib/utils";
 import {
@@ -67,6 +68,7 @@ interface PendingVerification {
 type TabFilter = "pending" | "verified" | "rejected" | "all";
 
 export default function VerificationsPage() {
+  const { canWrite } = useAuth();
   const [verifications, setVerifications] = useState<PendingVerification[]>([]);
   const [loading, setLoading] = useState(true);
   const [tabFilter, setTabFilter] = useState<TabFilter>("pending");
@@ -139,6 +141,7 @@ export default function VerificationsPage() {
   // ── Actions ──
 
   const handleApprove = async (uid: string) => {
+    if (!canWrite) return;
     setProcessing((prev) => new Set(prev).add(uid));
     try {
       await updateDoc(doc(db, "users", uid), {
@@ -162,7 +165,7 @@ export default function VerificationsPage() {
   };
 
   const handleReject = async (uid: string, reason: string) => {
-    if (!reason.trim()) return;
+    if (!canWrite || !reason.trim()) return;
     setProcessing((prev) => new Set(prev).add(uid));
     try {
       await updateDoc(doc(db, "users", uid), {
@@ -257,6 +260,7 @@ export default function VerificationsPage() {
             <VerificationCard
               key={v.uid}
               verification={v}
+              canWrite={canWrite}
               isProcessing={processing.has(v.uid)}
               onSelect={() => setSelectedVerification(v)}
               onApprove={() => handleApprove(v.uid)}
@@ -270,6 +274,7 @@ export default function VerificationsPage() {
       {selectedVerification && (
         <DocumentViewerPanel
           verification={selectedVerification}
+          canWrite={canWrite}
           isProcessing={processing.has(selectedVerification.uid)}
           onClose={() => setSelectedVerification(null)}
           onApprove={() => handleApprove(selectedVerification.uid)}
@@ -284,12 +289,14 @@ export default function VerificationsPage() {
 
 function VerificationCard({
   verification: v,
+  canWrite,
   isProcessing,
   onSelect,
   onApprove,
   onReject,
 }: {
   verification: PendingVerification;
+  canWrite: boolean;
   isProcessing: boolean;
   onSelect: () => void;
   onApprove: () => void;
@@ -359,7 +366,7 @@ function VerificationCard({
           )}
 
           {/* Action buttons (only for pending) */}
-          {v.verificationStatus === "pending" && !showRejectInput && (
+          {canWrite && v.verificationStatus === "pending" && !showRejectInput && (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowRejectInput(true)}
@@ -430,12 +437,14 @@ function VerificationCard({
 
 function DocumentViewerPanel({
   verification: v,
+  canWrite,
   isProcessing,
   onClose,
   onApprove,
   onReject,
 }: {
   verification: PendingVerification;
+  canWrite: boolean;
   isProcessing: boolean;
   onClose: () => void;
   onApprove: () => void;
@@ -601,7 +610,7 @@ function DocumentViewerPanel({
           </div>
 
           {/* Action buttons (only for pending) */}
-          {v.verificationStatus === "pending" && (
+          {canWrite && v.verificationStatus === "pending" && (
             <div className="pt-4 border-t border-[rgb(var(--border))] space-y-3">
               {!showReject ? (
                 <div className="flex gap-3">

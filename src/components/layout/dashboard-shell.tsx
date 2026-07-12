@@ -28,6 +28,8 @@ import {
   RotateCcw,
   CalendarClock,
   ShieldAlert,
+  Hourglass,
+  Eye,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AttentionBanner } from "@/components/layout/attention-banner";
@@ -42,6 +44,7 @@ const navItems = [
   { label: "Refunds", href: "/dashboard/refunds", icon: RotateCcw },
   { label: "Rent Reviews", href: "/dashboard/rent-reviews", icon: TrendingUp },
   { label: "Inspection Reviews", href: "/dashboard/inspection-reviews", icon: ClipboardCheck },
+  { label: "Rent Attention", href: "/dashboard/rent-attention", icon: Hourglass },
   { label: "Inspection Day", href: "/dashboard/inspections", icon: CalendarClock },
   { label: "Collusion Watch", href: "/dashboard/collusion", icon: ShieldAlert },
   { label: "Properties", href: "/dashboard/properties", icon: Building2 },
@@ -55,7 +58,7 @@ const navItems = [
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAdmin, loading, signOut } = useAuth();
+  const { user, isAdmin, isReadOnly, loading, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -113,6 +116,22 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </div>
+
+        {/* Read-only indicator */}
+        {isReadOnly && (
+          <div className={cn("px-3 pt-3", collapsed && "px-2")}>
+            <div
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500 text-[11px] font-medium",
+                collapsed ? "justify-center p-2" : "px-2.5 py-1.5"
+              )}
+              title="Read-only access — you can view but not change anything"
+            >
+              <Eye size={13} className="shrink-0" />
+              {!collapsed && <span>Read-only access</span>}
+            </div>
+          </div>
+        )}
 
         {/* Nav links */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">

@@ -6,18 +6,7 @@ import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import {
-  ShieldAlert,
-  Users,
-  Search,
-  X,
-  Loader2,
-  RefreshCw,
-  ChevronDown,
-  Home,
-  CalendarClock,
-  User,
-  RotateCcw,
-  Handshake,
+  ShieldAlert, Users, Search, X, Loader2, RefreshCw, ChevronDown, Home, CalendarClock, User, RotateCcw, Handshake,
   AlertTriangle,
   Info,
 } from "lucide-react";

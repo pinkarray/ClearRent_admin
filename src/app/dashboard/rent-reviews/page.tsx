@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
 import {
@@ -232,6 +233,7 @@ function RentReviewCard({
   onApprove: () => void;
   onReject: () => void;
 }) {
+  const { canWrite } = useAuth();
   const isRaise = review.proposedRent > review.currentRent;
   const [loadingDoc, setLoadingDoc] = useState(false);
 
@@ -372,22 +374,24 @@ function RentReviewCard({
         <FairnessPanel propertyId={review.propertyId} />
 
         {/* Actions */}
-        <div className="flex items-center gap-3 pt-1">
-          <button
-            onClick={onReject}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-red-500/30 text-red-500 text-sm font-semibold hover:bg-red-500/10 transition-colors"
-          >
-            <XCircle size={15} />
-            Reject
-          </button>
-          <button
-            onClick={onApprove}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors"
-          >
-            <CheckCircle2 size={15} />
-            Approve
-          </button>
-        </div>
+        {canWrite && (
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              onClick={onReject}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-red-500/30 text-red-500 text-sm font-semibold hover:bg-red-500/10 transition-colors"
+            >
+              <XCircle size={15} />
+              Reject
+            </button>
+            <button
+              onClick={onApprove}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors"
+            >
+              <CheckCircle2 size={15} />
+              Approve
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

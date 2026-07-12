@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { cn, timeAgo } from "@/lib/utils";
 import {
   MapPin,
@@ -81,6 +82,7 @@ function mapsUrl(lat: number, lng: number) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function UnknownAreasPage() {
+  const { canWrite } = useAuth();
   const [requests, setRequests] = useState<AreaRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
@@ -141,6 +143,7 @@ export default function UnknownAreasPage() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   async function setStatus(id: string, status: "pending" | "added" | "dismissed") {
+    if (!canWrite) return;
     setUpdating(id);
     try {
       await updateDoc(doc(db, "admin_requests", id), {
@@ -275,6 +278,7 @@ export default function UnknownAreasPage() {
                   <AreaRow
                     key={r.id}
                     request={r}
+                    canWrite={canWrite}
                     updating={updating === r.id}
                     copied={copied === r.rawName}
                     onCopy={() => copyName(r.rawName)}
@@ -293,6 +297,7 @@ export default function UnknownAreasPage() {
               <AreaCard
                 key={r.id}
                 request={r}
+                canWrite={canWrite}
                 updating={updating === r.id}
                 copied={copied === r.rawName}
                 onCopy={() => copyName(r.rawName)}
@@ -315,6 +320,7 @@ export default function UnknownAreasPage() {
 
 function AreaRow({
   request: r,
+  canWrite,
   updating,
   copied,
   onCopy,
@@ -323,6 +329,7 @@ function AreaRow({
   onReopen,
 }: {
   request: AreaRequest;
+  canWrite: boolean;
   updating: boolean;
   copied: boolean;
   onCopy: () => void;
@@ -387,7 +394,9 @@ function AreaRow({
 
       {/* Actions */}
       <td className="px-4 py-3">
-        {updating ? (
+        {!canWrite ? (
+          <span className="text-xs text-[rgb(var(--text-hint))]">—</span>
+        ) : updating ? (
           <Loader2 size={16} className="animate-spin text-[rgb(var(--text-hint))]" />
         ) : r.status === "pending" ? (
           <div className="flex items-center gap-2">
@@ -424,6 +433,7 @@ function AreaRow({
 
 function AreaCard({
   request: r,
+  canWrite,
   updating,
   copied,
   onCopy,
@@ -431,6 +441,7 @@ function AreaCard({
   onDismiss,
 }: {
   request: AreaRequest;
+  canWrite: boolean;
   updating: boolean;
   copied: boolean;
   onCopy: () => void;
@@ -490,7 +501,7 @@ function AreaCard({
             {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
             Copy key
           </button>
-          {r.status === "pending" && (
+          {canWrite && r.status === "pending" && (
             <>
               <button
                 onClick={onMarkAdded}

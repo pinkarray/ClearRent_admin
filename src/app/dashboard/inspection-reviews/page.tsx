@@ -6,12 +6,11 @@ import {
   query,
   where,
   onSnapshot,
-  doc,
-  updateDoc,
-  serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { fetchBankDetails, type BankDetails } from "@/lib/bank";
 import { cn, timeAgo } from "@/lib/utils";
 import {
@@ -70,6 +69,7 @@ function formatDate(d: Date | null) {
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function InspectionReviewsPage() {
+  const { canWrite } = useAuth();
   const [items, setItems] = useState<AwaitingInspection[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -139,7 +139,7 @@ export default function InspectionReviewsPage() {
   }
 
   async function submitRefund() {
-    if (!refundItem) return;
+    if (!canWrite || !refundItem) return;
     const full = refundItem.totalFee;
     const amount = Number(refundInput);
     if (!Number.isFinite(amount) || amount <= 0 || amount > full) {
@@ -148,25 +148,23 @@ export default function InspectionReviewsPage() {
     }
     setBusyId(refundItem.id);
     try {
-      await updateDoc(doc(db, "inspection_requests", refundItem.id), {
-        status: "refunded",
-        paymentStatus: "refunded",
-        refundAmount: amount,
-        refundReason:
-          amount < full
-            ? "Resolved by admin — partial refund (non-refundable cut retained)"
-            : "Resolved by admin — inspection not completed",
-        resolvedByAdmin: true,
-        refundedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      // Routed through the CF so the resolution is written to the immutable
+      // admin_audit_log (and the refund amount is re-validated server-side).
+      const fn = httpsCallable<
+        { requestId: string; action: string; refundAmount: number },
+        { success: boolean }
+      >(functions, "adminResolveInspection");
+      await fn({ requestId: refundItem.id, action: "refund", refundAmount: amount });
       setRefundItem(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Refund failed. Please try again.");
     } finally {
       setBusyId(null);
     }
   }
 
   async function markCompleted(item: AwaitingInspection) {
+    if (!canWrite) return;
     if (
       !confirm(
         `Mark "${item.propertyTitle}" as completed? The handler is paid their ₦7,000 fee; the tenant is not refunded.`
@@ -175,12 +173,13 @@ export default function InspectionReviewsPage() {
       return;
     setBusyId(item.id);
     try {
-      await updateDoc(doc(db, "inspection_requests", item.id), {
-        status: "completed",
-        completedAt: serverTimestamp(),
-        resolvedByAdmin: true,
-        updatedAt: serverTimestamp(),
-      });
+      const fn = httpsCallable<
+        { requestId: string; action: string },
+        { success: boolean }
+      >(functions, "adminResolveInspection");
+      await fn({ requestId: item.id, action: "complete" });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Action failed. Please try again.");
     } finally {
       setBusyId(null);
     }
@@ -293,32 +292,34 @@ export default function InspectionReviewsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      disabled={busy}
-                      onClick={() => openRefund(item)}
-                      className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
-                    >
-                      {busy ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Undo2 size={14} />
-                      )}
-                      Refund tenant
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() => markCompleted(item)}
-                      className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl bg-[rgb(var(--brand))] text-white hover:opacity-90 disabled:opacity-50"
-                    >
-                      {busy ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <CheckCircle2 size={14} />
-                      )}
-                      Mark completed
-                    </button>
-                  </div>
+                  {canWrite && (
+                    <div className="flex gap-2">
+                      <button
+                        disabled={busy}
+                        onClick={() => openRefund(item)}
+                        className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
+                      >
+                        {busy ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Undo2 size={14} />
+                        )}
+                        Refund tenant
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() => markCompleted(item)}
+                        className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl bg-[rgb(var(--brand))] text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {busy ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <CheckCircle2 size={14} />
+                        )}
+                        Mark completed
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

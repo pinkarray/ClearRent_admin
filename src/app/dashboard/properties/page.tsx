@@ -7,10 +7,11 @@ import {
   orderBy,
   onSnapshot,
   doc,
-  updateDoc,
-  serverTimestamp,
+  getDoc,
 } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, auth, functions } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
 import {
@@ -134,6 +135,7 @@ function capitalize(s: string) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PropertiesPage() {
+  const { canWrite } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [buildings, setBuildings] = useState<Map<string, Building>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -234,10 +236,12 @@ export default function PropertiesPage() {
         return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
+        // Exact street address isn't on the list doc (gated subdoc) — match on
+        // the area-level fields + title + landlord.
         return (
           p.title.toLowerCase().includes(q) ||
-          p.address.toLowerCase().includes(q) ||
           p.city.toLowerCase().includes(q) ||
+          p.state.toLowerCase().includes(q) ||
           (p.landlordName && p.landlordName.toLowerCase().includes(q))
         );
       }
@@ -250,81 +254,38 @@ export default function PropertiesPage() {
   // targets the building doc (covering EVERY unit), and the unit being reviewed
   // is published/hidden alongside. Standalone listings keep their own doc.
 
-  const verifyDoc = async (property: Property) => {
-    if (processing.has(property.id)) return;
+  // All three review verdicts now go through the adminReviewPropertyDoc CF so
+  // each one lands in the immutable admin_audit_log (the CF derives the building
+  // link server-side and writes property + building atomically).
+  const reviewDoc = async (
+    property: Property,
+    action: "verify" | "reject" | "publish",
+    reason?: string
+  ) => {
+    if (!canWrite || processing.has(property.id)) return;
     setProcessing((s) => new Set(s).add(property.id));
     try {
-      const b = property.buildingId ? buildings.get(property.buildingId) : undefined;
-      if (b) {
-        await updateDoc(doc(db, "buildings", b.id), {
-          ownershipDocStatus: "verified",
-          ownershipDocRejectionReason: "",
-          updatedAt: serverTimestamp(),
-        });
-        await updateDoc(doc(db, "properties", property.id), {
-          isVerified: true,
-          isAvailable: true, // publish the reviewed unit
-          updatedAt: serverTimestamp(),
-        });
-      } else {
-        await updateDoc(doc(db, "properties", property.id), {
-          ownershipDocStatus: "verified",
-          isVerified: true,
-          isAvailable: true, // Approving doc = publishing the listing
-          updatedAt: serverTimestamp(),
-        });
-      }
+      const fn = httpsCallable<
+        { propertyId: string; action: string; reason?: string },
+        { success: boolean }
+      >(functions, "adminReviewPropertyDoc");
+      await fn({ propertyId: property.id, action, ...(reason ? { reason } : {}) });
       if (selectedProperty?.id === property.id) setSelectedProperty(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Action failed. Please try again.");
     } finally {
       setProcessing((s) => { const n = new Set(s); n.delete(property.id); return n; });
     }
   };
 
-  const rejectDoc = async (property: Property, reason: string) => {
-    if (processing.has(property.id)) return;
-    setProcessing((s) => new Set(s).add(property.id));
-    try {
-      const b = property.buildingId ? buildings.get(property.buildingId) : undefined;
-      if (b) {
-        await updateDoc(doc(db, "buildings", b.id), {
-          ownershipDocStatus: "rejected",
-          ownershipDocRejectionReason: reason,
-          updatedAt: serverTimestamp(),
-        });
-        await updateDoc(doc(db, "properties", property.id), {
-          isAvailable: false,
-          updatedAt: serverTimestamp(),
-        });
-      } else {
-        await updateDoc(doc(db, "properties", property.id), {
-          ownershipDocStatus: "rejected",
-          isVerified: false,
-          isAvailable: false, // Rejected = stays hidden
-          ownershipDocRejectionReason: reason,
-          updatedAt: serverTimestamp(),
-        });
-      }
-      if (selectedProperty?.id === property.id) setSelectedProperty(null);
-    } finally {
-      setProcessing((s) => { const n = new Set(s); n.delete(property.id); return n; });
-    }
-  };
+  const verifyDoc = (property: Property) => reviewDoc(property, "verify");
+  const rejectDoc = (property: Property, reason: string) =>
+    reviewDoc(property, "reject", reason);
 
   // Publish a grouped unit whose building C of O is already verified — ownership
   // is settled, this is the per-unit listing approval.
   const publishUnit = async (property: Property) => {
-    if (processing.has(property.id)) return;
-    setProcessing((s) => new Set(s).add(property.id));
-    try {
-      await updateDoc(doc(db, "properties", property.id), {
-        isVerified: true,
-        isAvailable: true,
-        updatedAt: serverTimestamp(),
-      });
-      if (selectedProperty?.id === property.id) setSelectedProperty(null);
-    } finally {
-      setProcessing((s) => { const n = new Set(s); n.delete(property.id); return n; });
-    }
+    await reviewDoc(property, "publish");
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -394,7 +355,7 @@ export default function PropertiesPage() {
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[rgb(var(--text-hint))]" />
           <input
             type="text"
-            placeholder="Search by title, address, city, or landlord..."
+            placeholder="Search by title, city, state, or landlord..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input pl-10"
@@ -438,6 +399,7 @@ export default function PropertiesPage() {
               key={property.id}
               property={property}
               docInfo={resolveDoc(property, buildings)}
+              canWrite={canWrite}
               processing={processing.has(property.id)}
               onView={() => setSelectedProperty(property)}
               onVerifyDoc={() => verifyDoc(property)}
@@ -451,6 +413,7 @@ export default function PropertiesPage() {
         <PropertyDetailPanel
           property={selectedProperty}
           docInfo={resolveDoc(selectedProperty, buildings)}
+          canWrite={canWrite}
           processing={processing.has(selectedProperty.id)}
           onClose={() => setSelectedProperty(null)}
           onVerifyDoc={() => verifyDoc(selectedProperty)}
@@ -467,12 +430,14 @@ export default function PropertiesPage() {
 function PropertyCard({
   property,
   docInfo,
+  canWrite,
   processing,
   onView,
   onVerifyDoc,
 }: {
   property: Property;
   docInfo: DocInfo;
+  canWrite: boolean;
   processing: boolean;
   onView: () => void;
   onVerifyDoc: () => void;
@@ -523,7 +488,10 @@ function PropertyCard({
           <div className="flex items-center gap-1 mt-0.5">
             <MapPin size={11} className="text-[rgb(var(--text-hint))] shrink-0" />
             <p className="text-xs text-[rgb(var(--text-hint))] truncate">
-              {property.address}, {property.city}
+              {/* Exact street address lives in the gated private/location
+                  subdoc — the list shows area-level only (fetched per-property
+                  in the detail panel). */}
+              {[property.city, property.state].filter(Boolean).join(", ")}
             </p>
           </div>
         </div>
@@ -561,7 +529,7 @@ function PropertyCard({
         </div>
 
         {/* Quick verify action for pending docs */}
-        {hasPendingDoc && (
+        {canWrite && hasPendingDoc && (
           <div
             className="flex items-center gap-2 pt-1 border-t border-[rgb(var(--border))]"
             onClick={(e) => e.stopPropagation()}
@@ -598,6 +566,7 @@ function PropertyCard({
 function PropertyDetailPanel({
   property,
   docInfo,
+  canWrite,
   processing,
   onClose,
   onVerifyDoc,
@@ -606,6 +575,7 @@ function PropertyDetailPanel({
 }: {
   property: Property;
   docInfo: DocInfo;
+  canWrite: boolean;
   processing: boolean;
   onClose: () => void;
   onVerifyDoc: () => void;
@@ -615,6 +585,27 @@ function PropertyDetailPanel({
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [loadingDoc, setLoadingDoc] = useState(false);
+
+  // The exact street address lives in the gated `properties/{id}/private/location`
+  // subdoc (reveal-on-approval, Phase 2b). Admin is entitled — fetch it for the
+  // detail view. Falls back to area-level while loading / if absent.
+  const [exactAddress, setExactAddress] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setExactAddress(null);
+    getDoc(doc(db, "properties", property.id, "private", "location"))
+      .then((snap) => {
+        if (!active) return;
+        const addr = snap.data()?.address;
+        if (typeof addr === "string" && addr.length > 0) setExactAddress(addr);
+      })
+      .catch(() => {
+        /* not entitled / absent — leave area-level */
+      });
+    return () => {
+      active = false;
+    };
+  }, [property.id]);
 
   // Ownership docs are private. New ones are Storage paths streamed through the
   // authenticated route (token never in a URL); legacy Cloudinary docs are
@@ -705,7 +696,15 @@ function PropertyDetailPanel({
           {/* Location */}
           <div className="space-y-2">
             <h4 className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">Location</h4>
-            <DetailRow icon={MapPin} label="Address" value={property.address} />
+            <DetailRow
+              icon={MapPin}
+              label="Address"
+              value={
+                exactAddress ??
+                (property.address ||
+                  [property.city, property.state].filter(Boolean).join(", "))
+              }
+            />
             <DetailRow icon={MapPin} label="City" value={`${property.city}, ${property.state}`} />
           </div>
 
@@ -793,7 +792,7 @@ function PropertyDetailPanel({
                 )}
 
                 {/* Per-unit publish: building doc already verified, unit hidden */}
-                {needsPublish && (
+                {canWrite && needsPublish && (
                   <button
                     onClick={onPublish}
                     disabled={processing}
@@ -805,7 +804,7 @@ function PropertyDetailPanel({
                 )}
 
                 {/* Actions for pending docs */}
-                {isPendingDoc && !showRejectForm && (
+                {canWrite && isPendingDoc && !showRejectForm && (
                   <div className="flex gap-2 pt-1">
                     <button
                       onClick={onVerifyDoc}
@@ -825,7 +824,7 @@ function PropertyDetailPanel({
                   </div>
                 )}
 
-                {isPendingDoc && showRejectForm && (
+                {canWrite && isPendingDoc && showRejectForm && (
                   <div className="space-y-3">
                     <p className="text-sm font-medium text-[rgb(var(--text-primary))]">Reason for rejection</p>
                     <textarea

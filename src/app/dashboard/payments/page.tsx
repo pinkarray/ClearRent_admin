@@ -12,6 +12,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
 import {
@@ -87,6 +88,7 @@ function formatNaira(amount: number) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PaymentsPage() {
+  const { canWrite } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [tabFilter, setTabFilter] = useState<TabFilter>("pending");
@@ -212,7 +214,11 @@ export default function PaymentsPage() {
             tenantPhone: data.landlordPhone,
             propertyId: d.id,
             propertyTitle: data.title || "Unknown Property",
-            propertyAddress: `${data.address || ""}, ${data.city || ""}`,
+            // Exact street address is in the gated subdoc now — show area-level.
+            propertyAddress:
+              [data.city, data.state].filter(Boolean).join(", ") ||
+              data.address ||
+              "",
             landlordId: data.landlordId,
             landlordName: data.landlordName,
             landlordPhone: data.landlordPhone,
@@ -288,7 +294,7 @@ export default function PaymentsPage() {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const confirmPayment = async (payment: Payment) => {
-    if (processing.has(payment.id)) return;
+    if (!canWrite || processing.has(payment.id)) return;
     setProcessing((s) => new Set(s).add(payment.id));
     try {
       if (payment.type === "inspection") {
@@ -324,7 +330,7 @@ export default function PaymentsPage() {
   };
 
   const refundPayment = async (payment: Payment, reason: string) => {
-    if (processing.has(payment.id)) return;
+    if (!canWrite || processing.has(payment.id)) return;
     setProcessing((s) => new Set(s).add(payment.id));
     try {
       if (payment.type === "inspection") {
@@ -473,6 +479,7 @@ export default function PaymentsPage() {
             <PaymentCard
               key={`${payment.type}-${payment.id}`}
               payment={payment}
+              canWrite={canWrite}
               processing={processing.has(payment.id)}
               onView={() => setSelectedPayment(payment)}
               onConfirm={() => confirmPayment(payment)}
@@ -485,6 +492,7 @@ export default function PaymentsPage() {
       {selectedPayment && (
         <PaymentDetailPanel
           payment={selectedPayment}
+          canWrite={canWrite}
           processing={processing.has(selectedPayment.id)}
           onClose={() => setSelectedPayment(null)}
           onConfirm={() => confirmPayment(selectedPayment)}
@@ -499,11 +507,13 @@ export default function PaymentsPage() {
 
 function PaymentCard({
   payment,
+  canWrite,
   processing,
   onView,
   onConfirm,
 }: {
   payment: Payment;
+  canWrite: boolean;
   processing: boolean;
   onView: () => void;
   onConfirm: () => void;
@@ -578,7 +588,7 @@ function PaymentCard({
         >
           <Eye size={16} />
         </button>
-        {isPending && (
+        {canWrite && isPending && (
           <button
             onClick={onConfirm}
             disabled={processing}
@@ -601,12 +611,14 @@ function PaymentCard({
 
 function PaymentDetailPanel({
   payment,
+  canWrite,
   processing,
   onClose,
   onConfirm,
   onRefund,
 }: {
   payment: Payment;
+  canWrite: boolean;
   processing: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -788,7 +800,7 @@ function PaymentDetailPanel({
           )}
 
           {/* Actions — only for pending */}
-          {isPending && (
+          {canWrite && isPending && (
             <div className="space-y-3 pt-2">
               {!showRefundForm ? (
                 <>

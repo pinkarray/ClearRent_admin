@@ -17,8 +17,9 @@
 
 import { useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { X, AlertCircle, CheckCircle2, Copy } from "lucide-react";
+import { X, AlertCircle, CheckCircle2, Copy, Eye } from "lucide-react";
 import { functions } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 type CallableName =
@@ -68,9 +69,10 @@ export function MarkPaidModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const { canWrite } = useAuth();
 
   const trimmedRef = paymentReference.trim();
-  const canSubmit = trimmedRef.length > 0 && !submitting;
+  const canSubmit = trimmedRef.length > 0 && !submitting && canWrite;
 
   const handleConfirm = async () => {
     if (!canSubmit) return;
@@ -228,6 +230,16 @@ export function MarkPaidModal({
                 className="w-full px-3 py-2.5 rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--background))] text-[rgb(var(--text-primary))] text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--brand))]/30 focus:border-[rgb(var(--brand))] disabled:opacity-40 resize-none"
               />
             </div>
+
+            {/* Read-only notice */}
+            {!canWrite && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <Eye size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  Read-only access — you can review this payment but not mark it paid.
+                </p>
+              </div>
+            )}
 
             {/* Error */}
             {error && (

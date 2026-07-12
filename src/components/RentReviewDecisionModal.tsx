@@ -21,8 +21,9 @@
 
 import { useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { X, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { X, AlertCircle, CheckCircle2, XCircle, Eye } from "lucide-react";
 import { functions } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 type CallableName =
@@ -56,11 +57,12 @@ export function RentReviewDecisionModal({
   const [decisionReason, setDecisionReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { canWrite } = useAuth();
 
   const isReject = mode === "reject";
   const trimmedReason = decisionReason.trim();
   // Reject requires a reason; approve has nothing to fill in.
-  const canSubmit = (!isReject || trimmedReason.length > 0) && !submitting;
+  const canSubmit = (!isReject || trimmedReason.length > 0) && !submitting && canWrite;
 
   const handleConfirm = async () => {
     if (!canSubmit) return;
@@ -161,6 +163,16 @@ export function RentReviewDecisionModal({
                   ? "This applies the new rent to the property immediately. The server re-checks that the property is still vacant before approving."
                   : "This stages the new rent for the tenant's next renewal with the chosen effective date."}
               </p>
+            )}
+
+            {/* Read-only notice */}
+            {!canWrite && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <Eye size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  Read-only access — you can review this request but not decide it.
+                </p>
+              </div>
             )}
 
             {/* Error */}

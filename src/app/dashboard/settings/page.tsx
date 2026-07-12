@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import {
   sendPasswordResetEmail,
   updateProfile,
@@ -114,7 +115,14 @@ export default function SettingsPage() {
 
 // ─── Profile Section ──────────────────────────────────────────────────────────
 
+const ROLE_LABELS: Record<string, string> = {
+  superAdmin: "Super Admin",
+  admin: "Admin",
+  viewer: "Read-only",
+};
+
 function ProfileSection() {
+  const { role } = useAuth();
   const user = auth?.currentUser;
   const [displayName, setDisplayName] = useState(user?.displayName || "Admin");
   const [saving, setSaving] = useState(false);
@@ -158,7 +166,7 @@ function ProfileSection() {
           <p className="font-semibold text-[rgb(var(--text-primary))]">{displayName || "Admin"}</p>
           <p className="text-sm text-[rgb(var(--text-hint))]">{user?.email}</p>
           <span className="inline-block mt-1 px-2 py-0.5 rounded-lg bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))] text-[10px] font-semibold">
-            Super Admin
+            {role ? ROLE_LABELS[role] ?? "Admin" : "Admin"}
           </span>
         </div>
       </div>

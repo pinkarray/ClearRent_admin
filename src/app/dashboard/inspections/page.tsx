@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 import {
   CalendarClock,
@@ -80,6 +81,7 @@ function formatDate(d: Date | null) {
 
 export default function InspectionDayPage() {
   const router = useRouter();
+  const { canWrite } = useAuth();
   const [items, setItems] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -172,6 +174,7 @@ export default function InspectionDayPage() {
   }, [filtered]);
 
   async function nudge(item: Inspection, target: "tenant" | "handler") {
+    if (!canWrite) return;
     const key = `${item.id}:${target}`;
     setNudging(key);
     try {
@@ -191,6 +194,7 @@ export default function InspectionDayPage() {
   }
 
   async function togglePin(item: Inspection) {
+    if (!canWrite) return;
     setPinBusy(item.id);
     try {
       await updateDoc(doc(db, "inspection_requests", item.id), {
@@ -202,7 +206,7 @@ export default function InspectionDayPage() {
     }
   }
 
-  const cardProps = { router, nudge, nudging, nudged, togglePin, pinBusy };
+  const cardProps = { router, nudge, nudging, nudged, togglePin, pinBusy, canWrite };
 
   return (
     <div className="space-y-6">
@@ -326,9 +330,10 @@ interface CardProps {
   nudged: Record<string, number>;
   togglePin: (item: Inspection) => void;
   pinBusy: string | null;
+  canWrite: boolean;
 }
 
-function InspectionCard({ item, router, nudge, nudging, nudged, togglePin, pinBusy }: CardProps) {
+function InspectionCard({ item, router, nudge, nudging, nudged, togglePin, pinBusy, canWrite }: CardProps) {
   const handlerId = item.agentId ?? item.landlordId;
   const handlerName = item.agentId ? item.agentName ?? "Agent" : item.landlordName ?? "Landlord";
   const handlerRole = item.agentId ? "agent" : "landlord";
@@ -379,6 +384,7 @@ function InspectionCard({ item, router, nudge, nudging, nudged, togglePin, pinBu
         </div>
 
         {/* Actions */}
+        {canWrite && (
         <div className="flex flex-col items-end gap-2 shrink-0">
           <button
             onClick={() => togglePin(item)}
@@ -414,6 +420,7 @@ function InspectionCard({ item, router, nudge, nudging, nudged, togglePin, pinBu
             />
           </div>
         </div>
+        )}
       </div>
     </div>
   );

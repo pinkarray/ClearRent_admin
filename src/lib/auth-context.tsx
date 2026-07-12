@@ -9,9 +9,25 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
+export type AdminRole = "superAdmin" | "admin" | "viewer";
+
+/** Resolve the effective admin-panel role from a user's custom claims. */
+function roleFromClaims(claims: Record<string, unknown>): AdminRole | null {
+  if (claims.superAdmin === true) return "superAdmin";
+  if (claims.admin === true) return "admin";
+  if (claims.viewer === true) return "viewer";
+  return null;
+}
+
 interface AuthContextType {
   user: User | null;
+  role: AdminRole | null;
+  /** Has access to the admin panel at all (any recognized role). */
   isAdmin: boolean;
+  /** May perform mutating actions (superAdmin or admin). */
+  canWrite: boolean;
+  /** Signed in as a read-only viewer. */
+  isReadOnly: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
@@ -19,7 +35,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  role: null,
   isAdmin: false,
+  canWrite: false,
+  isReadOnly: false,
   loading: true,
   signIn: async () => ({ success: false }),
   signOut: async () => {},
@@ -27,7 +46,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<AdminRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -47,13 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // waiting for the hourly token rotation.
         try {
           const result = await firebaseUser.getIdTokenResult(true);
-          const claims = result.claims;
-          setIsAdmin(claims.superAdmin === true || claims.admin === true);
+          setRole(roleFromClaims(result.claims));
         } catch {
-          setIsAdmin(false);
+          setRole(null);
         }
       } else {
-        setIsAdmin(false);
+        setRole(null);
       }
       setLoading(false);
     });
@@ -65,9 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await signInWithEmailAndPassword(auth, email, password);
       // Force-refresh the token so any claim set within the last hour is visible.
       const tokenResult = await result.user.getIdTokenResult(true);
-      const claims = tokenResult.claims;
-      const hasAdminClaim = claims.superAdmin === true || claims.admin === true;
-      if (!hasAdminClaim) {
+      if (roleFromClaims(tokenResult.claims) === null) {
         await fbSignOut(auth);
         return { success: false, error: "Access denied. Admin accounts only." };
       }
@@ -93,8 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // While not mounted (SSR), always show loading
   const effectiveLoading = !mounted || loading;
 
+  const isAdmin = role !== null;
+  const canWrite = role === "superAdmin" || role === "admin";
+  const isReadOnly = role === "viewer";
+
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading: effectiveLoading, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{ user, role, isAdmin, canWrite, isReadOnly, loading: effectiveLoading, signIn, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );

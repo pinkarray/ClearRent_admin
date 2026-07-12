@@ -49,7 +49,12 @@ interface BaseUser {
 interface PropertyRow {
   id: string;
   title: string;
+  // Exact street address lives in the gated private/location subdoc (Phase 2b);
+  // this overview shows area-level (city/state) — `address` is a legacy
+  // fallback for un-migrated docs.
   address: string;
+  city: string;
+  state: string;
   isAvailable: boolean;
   slots?: number;
   currentTenantsCount?: number;
@@ -192,6 +197,8 @@ async function loadGraph(uid: string): Promise<UserGraph> {
       id: d.id,
       title: str(x.title) || "Property",
       address: str(x.address),
+      city: str(x.city),
+      state: str(x.state),
       isAvailable: x.isAvailable !== false,
       slots: typeof x.slots === "number" ? x.slots : undefined,
       currentTenantsCount:
@@ -468,7 +475,11 @@ export default function UserProfilePage() {
             <div key={p.id} className="row">
               <div className="flex-1 min-w-0">
                 <p className="row-title">{p.title}</p>
-                <p className="row-sub">{p.address || "No address"}</p>
+                <p className="row-sub">
+                  {[p.city, p.state].filter(Boolean).join(", ") ||
+                    p.address ||
+                    "No location"}
+                </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 {p.assignedAgentId && (
@@ -495,7 +506,11 @@ export default function UserProfilePage() {
             <div key={p.id} className="row">
               <div className="flex-1 min-w-0">
                 <p className="row-title">{p.title}</p>
-                <p className="row-sub">{p.address || "No address"}</p>
+                <p className="row-sub">
+                  {[p.city, p.state].filter(Boolean).join(", ") ||
+                    p.address ||
+                    "No location"}
+                </p>
               </div>
               <span className="text-xs text-[rgb(var(--text-hint))] shrink-0">
                 Owner:{" "}
