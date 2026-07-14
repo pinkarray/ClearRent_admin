@@ -30,12 +30,14 @@ import {
   ShieldAlert,
   Hourglass,
   Eye,
+  Bell,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AttentionBanner } from "@/components/layout/attention-banner";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Alerts", href: "/dashboard/alerts", icon: Bell },
   { label: "Users", href: "/dashboard/users", icon: Users },
   { label: "Verifications", href: "/dashboard/verifications", icon: ShieldCheck },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard },

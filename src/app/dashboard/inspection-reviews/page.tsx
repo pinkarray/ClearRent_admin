@@ -23,6 +23,8 @@ import {
   Home,
   User,
   CalendarClock,
+  Flag,
+  Ban,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -41,12 +43,51 @@ interface AwaitingInspection {
   handlerArrived: boolean;
   totalFee: number;
   updatedAt: Date | null;
+  // Tenant-filed dispute ("Report a problem"). A disputed *completed*
+  // inspection stays completed (not awaitingOutcome), so it's picked up by a
+  // second listener keyed on disputeStatus.
+  disputed: boolean;
+  disputeCategory: string | null;
+  disputeDetails: string | null;
 }
 
 function toDate(v: unknown): Date | null {
   if (v instanceof Timestamp) return v.toDate();
   return null;
 }
+
+function mapInspection(
+  id: string,
+  x: Record<string, unknown>
+): AwaitingInspection {
+  return {
+    id,
+    tenantId: (x.tenantId as string) ?? "",
+    propertyTitle: (x.propertyTitle as string) ?? "Property",
+    tenantName: (x.tenantName as string) ?? "Tenant",
+    agentId: (x.agentId as string) ?? null,
+    agentName: (x.agentName as string) ?? null,
+    landlordName: (x.landlordName as string) ?? null,
+    requestedDate: toDate(x.requestedDate),
+    requestedTimeSlot: (x.requestedTimeSlot as string) ?? "",
+    tenantArrived: x.tenantArrived === true,
+    handlerArrived: x.handlerArrived === true,
+    totalFee: (x.totalFee as number) ?? 0,
+    updatedAt: toDate(x.updatedAt),
+    disputed: x.disputed === true,
+    disputeCategory: (x.disputeCategory as string) ?? null,
+    disputeDetails: (x.disputeDetails as string) ?? null,
+  };
+}
+
+// Human labels for the dispute categories the tenant app sends.
+const DISPUTE_LABEL: Record<string, string> = {
+  misrepresented: "Property misrepresented",
+  no_show: "Handler no-show",
+  unprofessional: "Unprofessional conduct",
+  safety: "Safety concern",
+  refund_request: "Refund request",
+};
 
 function formatNaira(amount: number) {
   return `₦${(amount ?? 0).toLocaleString("en-NG")}`;
@@ -70,7 +111,8 @@ function formatDate(d: Date | null) {
 
 export default function InspectionReviewsPage() {
   const { canWrite } = useAuth();
-  const [items, setItems] = useState<AwaitingInspection[]>([]);
+  const [awaiting, setAwaiting] = useState<AwaitingInspection[]>([]);
+  const [disputed, setDisputed] = useState<AwaitingInspection[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -79,6 +121,7 @@ export default function InspectionReviewsPage() {
   const [refundBank, setRefundBank] = useState<BankDetails | null>(null);
   const [refundBankLoading, setRefundBankLoading] = useState(false);
 
+  // Inspections with no clear outcome (the day-of/sweep flow).
   useEffect(() => {
     const q = query(
       collection(db, "inspection_requests"),
@@ -87,34 +130,44 @@ export default function InspectionReviewsPage() {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows = snap.docs.map((d) => {
-          const x = d.data();
-          return {
-            id: d.id,
-            tenantId: (x.tenantId as string) ?? "",
-            propertyTitle: (x.propertyTitle as string) ?? "Property",
-            tenantName: (x.tenantName as string) ?? "Tenant",
-            agentId: (x.agentId as string) ?? null,
-            agentName: (x.agentName as string) ?? null,
-            landlordName: (x.landlordName as string) ?? null,
-            requestedDate: toDate(x.requestedDate),
-            requestedTimeSlot: (x.requestedTimeSlot as string) ?? "",
-            tenantArrived: x.tenantArrived === true,
-            handlerArrived: x.handlerArrived === true,
-            totalFee: (x.totalFee as number) ?? 0,
-            updatedAt: toDate(x.updatedAt),
-          } as AwaitingInspection;
-        });
-        rows.sort((a, b) =>
-          (a.requestedDate?.getTime() ?? 0) - (b.requestedDate?.getTime() ?? 0)
-        );
-        setItems(rows);
+        setAwaiting(snap.docs.map((d) => mapInspection(d.id, d.data())));
         setLoading(false);
       },
       () => setLoading(false)
     );
     return () => unsub();
   }, []);
+
+  // Tenant-filed disputes still open (includes disputed *completed*
+  // inspections, which never enter awaitingOutcome).
+  useEffect(() => {
+    const q = query(
+      collection(db, "inspection_requests"),
+      where("disputeStatus", "==", "open")
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => setDisputed(snap.docs.map((d) => mapInspection(d.id, d.data()))),
+      () => {}
+    );
+    return () => unsub();
+  }, []);
+
+  // Union of both listeners, deduped by id (a disputed approved inspection
+  // appears in both). Disputed items float to the top.
+  const items = useMemo(() => {
+    const byId = new Map<string, AwaitingInspection>();
+    awaiting.forEach((it) => byId.set(it.id, it));
+    disputed.forEach((it) => byId.set(it.id, it));
+    const arr = Array.from(byId.values());
+    arr.sort((a, b) => {
+      if (a.disputed !== b.disputed) return a.disputed ? -1 : 1;
+      return (
+        (a.requestedDate?.getTime() ?? 0) - (b.requestedDate?.getTime() ?? 0)
+      );
+    });
+    return arr;
+  }, [awaiting, disputed]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -185,6 +238,30 @@ export default function InspectionReviewsPage() {
     }
   }
 
+  // Dismiss an unfounded dispute: closes it + its alert, no money moves and the
+  // inspection status is untouched.
+  async function dismissDispute(item: AwaitingInspection) {
+    if (!canWrite) return;
+    if (
+      !confirm(
+        `Dismiss the dispute on "${item.propertyTitle}"? No refund is issued and the inspection is left as-is.`
+      )
+    )
+      return;
+    setBusyId(item.id);
+    try {
+      const fn = httpsCallable<
+        { requestId: string; action: string },
+        { success: boolean }
+      >(functions, "adminResolveInspection");
+      await fn({ requestId: item.id, action: "dismiss" });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Action failed. Please try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -194,7 +271,8 @@ export default function InspectionReviewsPage() {
             Inspection Reviews
           </h1>
           <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-            Past inspections with no clear outcome — decide refund or completed.
+            Inspections with no clear outcome, plus tenant-filed disputes —
+            refund, complete, or dismiss.
           </p>
         </div>
         <div className="relative">
@@ -230,7 +308,7 @@ export default function InspectionReviewsPage() {
             className="mx-auto text-[rgb(var(--text-hint))]"
           />
           <p className="mt-3 text-sm text-[rgb(var(--text-secondary))]">
-            Nothing to review — no inspections are awaiting an outcome.
+            Nothing to review — no inspections awaiting an outcome or disputed.
           </p>
         </div>
       ) : (
@@ -244,12 +322,25 @@ export default function InspectionReviewsPage() {
               <div key={item.id} className="card">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Home size={15} className="text-[rgb(var(--brand))]" />
                       <span className="font-semibold text-sm text-[rgb(var(--text-primary))]">
                         {item.propertyTitle}
                       </span>
+                      {item.disputed && (
+                        <span className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/30">
+                          <Flag size={11} />
+                          Disputed:{" "}
+                          {DISPUTE_LABEL[item.disputeCategory ?? ""] ??
+                            "reported"}
+                        </span>
+                      )}
                     </div>
+                    {item.disputed && item.disputeDetails && (
+                      <p className="text-xs text-[rgb(var(--text-secondary))] italic">
+                        “{item.disputeDetails}”
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[rgb(var(--text-secondary))]">
                       <span className="flex items-center gap-1">
                         <User size={12} /> {item.tenantName} (tenant)
@@ -318,6 +409,20 @@ export default function InspectionReviewsPage() {
                         )}
                         Mark completed
                       </button>
+                      {item.disputed && (
+                        <button
+                          disabled={busy}
+                          onClick={() => dismissDispute(item)}
+                          className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
+                        >
+                          {busy ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Ban size={14} />
+                          )}
+                          Dismiss dispute
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
