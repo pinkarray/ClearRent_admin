@@ -12,6 +12,11 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { fetchBankDetails, type BankDetails } from "@/lib/bank";
+import {
+  fetchUserContact,
+  toWhatsApp,
+  type UserContact,
+} from "@/lib/contact";
 import { cn, timeAgo } from "@/lib/utils";
 import {
   ClipboardCheck,
@@ -25,6 +30,10 @@ import {
   CalendarClock,
   Flag,
   Ban,
+  MessageSquare,
+  Phone,
+  Mail,
+  Send,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -36,6 +45,7 @@ interface AwaitingInspection {
   tenantName: string;
   agentId: string | null;
   agentName: string | null;
+  landlordId: string | null;
   landlordName: string | null;
   requestedDate: Date | null;
   requestedTimeSlot: string;
@@ -67,6 +77,7 @@ function mapInspection(
     tenantName: (x.tenantName as string) ?? "Tenant",
     agentId: (x.agentId as string) ?? null,
     agentName: (x.agentName as string) ?? null,
+    landlordId: (x.landlordId as string) ?? null,
     landlordName: (x.landlordName as string) ?? null,
     requestedDate: toDate(x.requestedDate),
     requestedTimeSlot: (x.requestedTimeSlot as string) ?? "",
@@ -120,6 +131,21 @@ export default function InspectionReviewsPage() {
   const [refundInput, setRefundInput] = useState<string>("");
   const [refundBank, setRefundBank] = useState<BankDetails | null>(null);
   const [refundBankLoading, setRefundBankLoading] = useState(false);
+
+  // Contact-parties modal (reach out about a dispute).
+  const [contactItem, setContactItem] = useState<AwaitingInspection | null>(
+    null
+  );
+  const [tenantContact, setTenantContact] = useState<UserContact | null>(null);
+  const [handlerContact, setHandlerContact] = useState<UserContact | null>(
+    null
+  );
+  const [contactLoading, setContactLoading] = useState(false);
+  const [messageTarget, setMessageTarget] = useState<
+    "tenant" | "handler" | "both"
+  >("both");
+  const [messageText, setMessageText] = useState("");
+  const [sending, setSending] = useState(false);
 
   // Inspections with no clear outcome (the day-of/sweep flow).
   useEffect(() => {
@@ -259,6 +285,48 @@ export default function InspectionReviewsPage() {
       alert(err instanceof Error ? err.message : "Action failed. Please try again.");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  // Open the "reach out" modal and load both parties' contact details.
+  function openContact(item: AwaitingInspection) {
+    setContactItem(item);
+    setTenantContact(null);
+    setHandlerContact(null);
+    setMessageText("");
+    setMessageTarget("both");
+    setContactLoading(true);
+    const handlerId = item.agentId ?? item.landlordId;
+    Promise.all([
+      item.tenantId ? fetchUserContact(item.tenantId) : Promise.resolve(null),
+      handlerId ? fetchUserContact(handlerId) : Promise.resolve(null),
+    ])
+      .then(([t, h]) => {
+        setTenantContact(t);
+        setHandlerContact(h);
+      })
+      .finally(() => setContactLoading(false));
+  }
+
+  async function sendMessage() {
+    if (!canWrite || !contactItem || !messageText.trim()) return;
+    setSending(true);
+    try {
+      const fn = httpsCallable<
+        { inspectionId: string; target: string; message: string },
+        { ok: boolean; sent: number }
+      >(functions, "messageInspectionParties");
+      const res = await fn({
+        inspectionId: contactItem.id,
+        target: messageTarget,
+        message: messageText.trim(),
+      });
+      alert(`Message sent to ${res.data.sent} recipient(s).`);
+      setMessageText("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Couldn't send. Please try again.");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -410,18 +478,27 @@ export default function InspectionReviewsPage() {
                         Mark completed
                       </button>
                       {item.disputed && (
-                        <button
-                          disabled={busy}
-                          onClick={() => dismissDispute(item)}
-                          className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
-                        >
-                          {busy ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : (
-                            <Ban size={14} />
-                          )}
-                          Dismiss dispute
-                        </button>
+                        <>
+                          <button
+                            onClick={() => openContact(item)}
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))]"
+                          >
+                            <MessageSquare size={14} />
+                            Contact parties
+                          </button>
+                          <button
+                            disabled={busy}
+                            onClick={() => dismissDispute(item)}
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
+                          >
+                            {busy ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Ban size={14} />
+                            )}
+                            Dismiss dispute
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
@@ -544,6 +621,164 @@ export default function InspectionReviewsPage() {
                 Confirm refund
               </button>
             </div>
+          </div>
+        </>
+      )}
+
+      {contactItem && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40"
+            onClick={() => {
+              if (!sending) setContactItem(null);
+            }}
+          />
+          <div className="fixed left-1/2 top-1/2 z-50 w-[min(94vw,32rem)] max-h-[90vh] overflow-y-auto -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-display font-semibold text-[rgb(var(--text-primary))]">
+                  Contact parties
+                </h3>
+                <p className="mt-1 text-sm text-[rgb(var(--text-secondary))]">
+                  {contactItem.propertyTitle}
+                </p>
+              </div>
+              <button
+                onClick={() => !sending && setContactItem(null)}
+                className="text-[rgb(var(--text-hint))] hover:text-[rgb(var(--text-primary))]"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Contact cards */}
+            {contactLoading ? (
+              <p className="flex items-center gap-1.5 text-xs text-[rgb(var(--text-hint))]">
+                <Loader2 size={12} className="animate-spin" /> Loading contact
+                details…
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {[
+                  {
+                    role: "Tenant",
+                    name: contactItem.tenantName,
+                    c: tenantContact,
+                  },
+                  {
+                    role: contactItem.agentId ? "Agent (handler)" : "Landlord (handler)",
+                    name:
+                      contactItem.agentName ??
+                      contactItem.landlordName ??
+                      "Handler",
+                    c: handlerContact,
+                  },
+                ].map((party) => {
+                  const wa = toWhatsApp(party.c?.phone);
+                  return (
+                    <div
+                      key={party.role}
+                      className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--background))] p-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-[rgb(var(--text-hint))]">
+                            {party.role}
+                          </p>
+                          <p className="text-sm font-semibold text-[rgb(var(--text-primary))]">
+                            {party.c?.name || party.name}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {party.c?.phone ? (
+                          <>
+                            <a
+                              href={`tel:${party.c.phone}`}
+                              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--surface))]"
+                            >
+                              <Phone size={13} /> {party.c.phone}
+                            </a>
+                            {wa && (
+                              <a
+                                href={`https://wa.me/${wa}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                              >
+                                <MessageSquare size={13} /> WhatsApp
+                              </a>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-[rgb(var(--text-hint))]">
+                            No phone on file
+                          </span>
+                        )}
+                        {party.c?.email && (
+                          <a
+                            href={`mailto:${party.c.email}`}
+                            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--surface))]"
+                          >
+                            <Mail size={13} /> {party.c.email}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* In-app message */}
+            {canWrite && (
+              <div className="space-y-2 border-t border-[rgb(var(--border))] pt-4">
+                <p className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
+                  Send an in-app message
+                </p>
+                <div className="flex gap-2">
+                  {(["tenant", "handler", "both"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setMessageTarget(t)}
+                      className={cn(
+                        "text-xs px-2.5 py-1 rounded-lg border capitalize",
+                        messageTarget === t
+                          ? "border-[rgb(var(--brand))] bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))]"
+                          : "border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))]"
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. We're reviewing your report — please reply with any photos or details."
+                  className="w-full rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--background))] px-3 py-2 text-sm focus:border-[rgb(var(--brand))] focus:outline-none"
+                />
+                <div className="flex justify-end">
+                  <button
+                    disabled={sending || !messageText.trim()}
+                    onClick={sendMessage}
+                    className="flex items-center gap-1.5 rounded-xl bg-[rgb(var(--brand))] px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {sending ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Send size={14} />
+                    )}
+                    Send message
+                  </button>
+                </div>
+                <p className="text-[11px] text-[rgb(var(--text-hint))]">
+                  Delivered as a push + in-app notification. Sending is
+                  audit-logged.
+                </p>
+              </div>
+            )}
           </div>
         </>
       )}

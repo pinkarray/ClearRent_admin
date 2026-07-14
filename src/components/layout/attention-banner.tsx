@@ -89,7 +89,13 @@ export function AttentionBanner() {
       where("status", "==", "open")
     );
     const unsub = onSnapshot(q, (snap) => {
-      setOpenAlerts(snap.size);
+      // Only actionable alerts belong in the attention banner. Info-level
+      // items (inspection lifecycle, rent payments, the daily digest) live in
+      // the Alerts feed but shouldn't inflate "needs your attention".
+      const actionable = snap.docs.filter(
+        (d) => d.data().severity !== "info"
+      ).length;
+      setOpenAlerts(actionable);
     });
     return () => unsub();
   }, []);

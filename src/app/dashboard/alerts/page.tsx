@@ -25,6 +25,7 @@ import {
   FileWarning,
   DoorOpen,
   CalendarClock,
+  ClipboardList,
   ArrowRight,
   Check,
   Loader2,
@@ -59,6 +60,10 @@ const TYPE_META: Record<
     icon: Flag,
     route: () => "/dashboard/inspection-reviews",
   },
+  inspection_lifecycle: {
+    icon: ClipboardList,
+    route: () => "/dashboard/inspections",
+  },
   inspection_today_digest: {
     icon: CalendarClock,
     route: () => "/dashboard/inspections",
@@ -76,6 +81,16 @@ const TYPE_META: Record<
   },
   agreement_disputed: { icon: FileWarning, route: () => null },
   rental_end_contested: { icon: DoorOpen, route: () => null },
+};
+
+// Alert types whose case is resolved by a real action on a dedicated page —
+// that action (via its Cloud Function) closes the alert automatically. These
+// must NOT be dismissible here, or the notice would clear while the underlying
+// dispute/request stays open. Everything else is oversight/FYI: seeing it is
+// the whole job, so a manual "Dismiss" is honest.
+const RESOLVE_ON_PAGE: Record<string, string> = {
+  inspection_dispute: "Inspection Reviews",
+  rent_change_request: "Rent Reviews",
 };
 
 const SEVERITY_STYLES: Record<AdminAlert["severity"], string> = {
@@ -133,7 +148,9 @@ export default function AlertsPage() {
     [items]
   );
 
-  async function resolveAlert(item: AdminAlert) {
+  // Dismiss = acknowledge an oversight/FYI alert. Only offered for alerts that
+  // have no case to resolve elsewhere (see RESOLVE_ON_PAGE).
+  async function dismissAlert(item: AdminAlert) {
     if (!canWrite || !user) return;
     setBusyId(item.id);
     try {
@@ -143,9 +160,9 @@ export default function AlertsPage() {
         resolvedAt: serverTimestamp(),
       });
     } catch (err) {
-      console.error("Failed to resolve alert", err);
+      console.error("Failed to dismiss alert", err);
       window.alert(
-        err instanceof Error ? err.message : "Couldn't resolve. Try again."
+        err instanceof Error ? err.message : "Couldn't dismiss. Try again."
       );
     } finally {
       setBusyId(null);
@@ -188,6 +205,9 @@ export default function AlertsPage() {
             const Icon = meta?.icon ?? Bell;
             const route = meta?.route(item) ?? null;
             const busy = busyId === item.id;
+            // Actionable cases are resolved on their page (which closes this
+            // alert); FYI alerts are dismissible here.
+            const resolvePage = RESOLVE_ON_PAGE[item.type];
             return (
               <div key={item.id} className="card">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -222,31 +242,51 @@ export default function AlertsPage() {
                           {timeAgo(item.createdAt)}
                         </p>
                       )}
+                      {resolvePage && (
+                        <p className="text-[11px] text-[rgb(var(--text-hint))] mt-1 italic">
+                          Resolve this from {resolvePage} — it clears here
+                          automatically.
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2 shrink-0">
-                    {route && (
+                    {resolvePage && route ? (
+                      // Actionable: only a route to the resolution page. The
+                      // real action there closes the alert.
                       <button
                         onClick={() => router.push(route)}
-                        className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))]"
+                        className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl bg-[rgb(var(--brand))] text-white hover:opacity-90"
                       >
-                        View
+                        Review
                         <ArrowRight size={14} />
                       </button>
-                    )}
-                    {canWrite && (
-                      <button
-                        disabled={busy}
-                        onClick={() => resolveAlert(item)}
-                        className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl bg-[rgb(var(--brand))] text-white hover:opacity-90 disabled:opacity-50"
-                      >
-                        {busy ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Check size={14} />
+                    ) : (
+                      <>
+                        {route && (
+                          <button
+                            onClick={() => router.push(route)}
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))]"
+                          >
+                            View
+                            <ArrowRight size={14} />
+                          </button>
                         )}
-                        Resolve
-                      </button>
+                        {canWrite && (
+                          <button
+                            disabled={busy}
+                            onClick={() => dismissAlert(item)}
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
+                          >
+                            {busy ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Check size={14} />
+                            )}
+                            Dismiss
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
