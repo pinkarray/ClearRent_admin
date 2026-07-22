@@ -23,6 +23,7 @@ const FALLBACK = {
   verificationAgent: 7000,
   listing: 10000,
   inspectionTotal: 10000,
+  dealFee: 5000,
 };
 
 type FieldKey = keyof typeof FALLBACK;
@@ -52,6 +53,11 @@ const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
     key: "inspectionTotal",
     label: "Inspection booking fee",
     hint: "Total the tenant pays to book an inspection",
+  },
+  {
+    key: "dealFee",
+    label: "Deal completion fee",
+    hint: "Per party on a completed rental — also sets the tenant's rent total",
   },
 ];
 
@@ -89,6 +95,7 @@ export default function PricingPage() {
             inspectionTotal: String(
               d.inspection?.total ?? FALLBACK.inspectionTotal
             ),
+            dealFee: String(d.dealFee ?? FALLBACK.dealFee),
           });
           setUpdatedAt(parseTimestamp(d.updatedAt));
           setUpdatedBy(d.updatedBy || "");
@@ -125,6 +132,7 @@ export default function PricingPage() {
           },
           listing: Number(values.listing),
           inspection: { total: Number(values.inspectionTotal) },
+          dealFee: Number(values.dealFee),
           updatedAt: serverTimestamp(),
           updatedBy: "admin-dashboard",
         },
