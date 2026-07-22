@@ -31,6 +31,7 @@ import {
   Hourglass,
   Eye,
   Bell,
+  Coins,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AttentionBanner } from "@/components/layout/attention-banner";
@@ -54,6 +55,7 @@ const navItems = [
   { label: "Area Requests", href: "/dashboard/unknown-areas", icon: MapPin },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { label: "Announcements", href: "/dashboard/announcements", icon: Megaphone },
+  { label: "Pricing", href: "/dashboard/pricing", icon: Coins },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
