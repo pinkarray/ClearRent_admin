@@ -60,12 +60,15 @@ interface PendingVerification {
   paymentProofUrl?: string;
   paymentAmount?: number;
   paymentStatus?: string;
+  // Annual re-verification
+  isRenewal?: boolean;
+  verificationExpiresAt?: Date;
   // Rejection
   rejectionReason?: string;
   profileImageUrl?: string;
 }
 
-type TabFilter = "pending" | "verified" | "rejected" | "all";
+type TabFilter = "pending" | "verified" | "rejected" | "expired" | "all";
 
 export default function VerificationsPage() {
   const { canWrite } = useAuth();
@@ -80,7 +83,12 @@ export default function VerificationsPage() {
     // Listen to all users who have submitted verification
     const q = query(
       collection(db, "users"),
-      where("verificationStatus", "in", ["pending", "verified", "rejected"]),
+      where("verificationStatus", "in", [
+        "pending",
+        "verified",
+        "rejected",
+        "expired",
+      ]),
       orderBy("createdAt", "desc")
     );
 
@@ -114,6 +122,9 @@ export default function VerificationsPage() {
           paymentAmount: data.verificationPaymentAmount,
           paymentStatus: data.verificationPaymentStatus,
           rejectionReason: data.rejectionReason,
+          // Annual re-verification
+          isRenewal: data.isRenewal === true,
+          verificationExpiresAt: parseTimestamp(data.verificationExpiresAt),
         };
       });
       setVerifications(parsed);
@@ -137,6 +148,7 @@ export default function VerificationsPage() {
   const pendingCount = verifications.filter((v) => v.verificationStatus === "pending").length;
   const verifiedCount = verifications.filter((v) => v.verificationStatus === "verified").length;
   const rejectedCount = verifications.filter((v) => v.verificationStatus === "rejected").length;
+  const expiredCount = verifications.filter((v) => v.verificationStatus === "expired").length;
 
   // ── Actions ──
 
@@ -206,6 +218,7 @@ export default function VerificationsPage() {
           ["Pending", pendingCount, "pending"] as const,
           ["Verified", verifiedCount, "verified"] as const,
           ["Rejected", rejectedCount, "rejected"] as const,
+          ["Expired", expiredCount, "expired"] as const,
           ["All", verifications.length, "all"] as const,
         ]).map(([label, count, filter]) => (
           <button
@@ -315,6 +328,7 @@ function VerificationCard({
     pending: { cls: "badge-warning", label: "Pending Review" },
     verified: { cls: "badge-success", label: "Approved" },
     rejected: { cls: "badge-error", label: "Rejected" },
+    expired: { cls: "badge-warning", label: "Renewal Due" },
   };
   const status = statusConfig[v.verificationStatus] || statusConfig.pending;
 
@@ -335,11 +349,23 @@ function VerificationCard({
                 {capitalize(v.accountType)}
               </span>
               <span className={cn(status.cls, "text-[10px]")}>{status.label}</span>
+              {v.isRenewal && v.verificationStatus === "pending" && (
+                <span className="badge text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  Renewal
+                </span>
+              )}
             </div>
             <p className="text-xs text-[rgb(var(--text-hint))] truncate">{v.email}</p>
             {v.submittedAt && (
               <p className="text-[11px] text-[rgb(var(--text-hint))] mt-0.5">
                 Submitted {timeAgo(v.submittedAt)}
+              </p>
+            )}
+            {v.verificationExpiresAt && (
+              <p className="text-[11px] text-[rgb(var(--text-hint))] mt-0.5">
+                {v.verificationStatus === "expired"
+                  ? `Expired ${timeAgo(v.verificationExpiresAt)}`
+                  : `Expires ${v.verificationExpiresAt.toLocaleDateString("en-NG")}`}
               </p>
             )}
           </div>
