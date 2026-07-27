@@ -73,7 +73,9 @@ function toDate(v: unknown): Date | null {
 function deriveOutcome(x: Record<string, unknown>): Outcome {
   const status = (x.status as string) ?? "";
   const paymentStatus = (x.paymentStatus as string) ?? "";
-  const met = x.met === true;
+  // A meeting is confirmed only when BOTH parties recorded their half.
+  const met =
+    x.tenantConfirmedMet === true && x.handlerConfirmedMet === true;
   const tenantArrived = x.tenantArrived === true;
   const handlerArrived = x.handlerArrived === true;
 
