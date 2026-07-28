@@ -5,59 +5,17 @@ import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard,
-  Users,
-  ShieldCheck,
-  CreditCard,
-  Wallet,
-  Building2,
-  AlertTriangle,
-  BarChart3,
-  Megaphone,
-  Settings,
   LogOut,
   Sun,
   Moon,
   Monitor,
   ChevronLeft,
   Menu,
-  MapPin,
-  Banknote,
-  TrendingUp,
-  ClipboardCheck,
-  RotateCcw,
-  CalendarClock,
-  ShieldAlert,
-  Hourglass,
   Eye,
-  Bell,
-  Coins,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AttentionBanner } from "@/components/layout/attention-banner";
-
-const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Alerts", href: "/dashboard/alerts", icon: Bell },
-  { label: "Users", href: "/dashboard/users", icon: Users },
-  { label: "Verifications", href: "/dashboard/verifications", icon: ShieldCheck },
-  { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
-  { label: "Agent Payouts", href: "/dashboard/payouts", icon: Wallet },
-  { label: "Rent Payouts", href: "/dashboard/rent-payouts", icon: Banknote },
-  { label: "Refunds", href: "/dashboard/refunds", icon: RotateCcw },
-  { label: "Rent Reviews", href: "/dashboard/rent-reviews", icon: TrendingUp },
-  { label: "Inspection Reviews", href: "/dashboard/inspection-reviews", icon: ClipboardCheck },
-  { label: "Rent Attention", href: "/dashboard/rent-attention", icon: Hourglass },
-  { label: "Inspection Day", href: "/dashboard/inspections", icon: CalendarClock },
-  { label: "Collusion Watch", href: "/dashboard/collusion", icon: ShieldAlert },
-  { label: "Properties", href: "/dashboard/properties", icon: Building2 },
-  { label: "Issues", href: "/dashboard/issues", icon: AlertTriangle },
-  { label: "Area Requests", href: "/dashboard/unknown-areas", icon: MapPin },
-  { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
-  { label: "Announcements", href: "/dashboard/announcements", icon: Megaphone },
-  { label: "Pricing", href: "/dashboard/pricing", icon: Coins },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings },
-];
+import { NAV_GROUPS, isNavActive } from "@/lib/nav";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -138,30 +96,46 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Nav links */}
-        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(item.href));
-            return (
-              <button
-                key={item.href}
-                onClick={() => {
-                  router.push(item.href);
-                  setMobileOpen(false);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
-                  isActive
-                    ? "bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))]"
-                    : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] hover:text-[rgb(var(--text-primary))]",
-                  collapsed && "justify-center px-0"
-                )}
-                title={collapsed ? item.label : undefined}
-              >
-                <item.icon size={20} className="shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </button>
-            );
-          })}
+        <nav className="flex-1 py-4 px-3 overflow-y-auto">
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={group.label ?? "top"} className={cn(gi > 0 && "mt-5")}>
+              {/* Collapsed, a heading has no room — a rule keeps the grouping
+                  legible without it. */}
+              {group.label &&
+                (collapsed ? (
+                  <div className="mx-2 mb-2 border-t border-[rgb(var(--border))]" />
+                ) : (
+                  <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--text-hint))]">
+                    {group.label}
+                  </p>
+                ))}
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const isActive = isNavActive(item.href, pathname);
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={() => {
+                        router.push(item.href);
+                        setMobileOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
+                        isActive
+                          ? "bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))]"
+                          : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] hover:text-[rgb(var(--text-primary))]",
+                        collapsed && "justify-center px-0"
+                      )}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <item.icon size={20} className="shrink-0" />
+                      {!collapsed && <span>{item.label}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Bottom section */}
