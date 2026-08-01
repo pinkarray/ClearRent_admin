@@ -18,6 +18,7 @@ import {
   updatePassword,
 } from "firebase/auth";
 import { cn } from "@/lib/utils";
+import { PushToggle } from "@/components/notifications/push-toggle";
 import {
   Settings,
   User,
@@ -39,7 +40,12 @@ import { useTheme } from "next-themes";
 
 // ─── Section types ────────────────────────────────────────────────────────────
 
-type ActiveSection = "profile" | "password" | "appearance" | "about";
+type ActiveSection =
+  | "profile"
+  | "password"
+  | "notifications"
+  | "appearance"
+  | "about";
 
 interface AdminProfile {
   displayName: string;
@@ -54,6 +60,7 @@ export default function SettingsPage() {
   const navItems: { id: ActiveSection; label: string; icon: any; desc: string }[] = [
     { id: "profile",    label: "Profile",    icon: User,    desc: "Your admin name and email" },
     { id: "password",   label: "Password",   icon: Lock,    desc: "Change your password" },
+    { id: "notifications", label: "Notifications", icon: Bell, desc: "Alerts on this device" },
     { id: "appearance", label: "Appearance", icon: Palette, desc: "Theme preferences" },
     { id: "about",      label: "About",      icon: Info,    desc: "App version and info" },
   ];
@@ -105,6 +112,7 @@ export default function SettingsPage() {
         <div className="lg:col-span-3">
           {activeSection === "profile"    && <ProfileSection />}
           {activeSection === "password"   && <PasswordSection />}
+          {activeSection === "notifications" && <PushToggle />}
           {activeSection === "appearance" && <AppearanceSection />}
           {activeSection === "about"      && <AboutSection />}
         </div>

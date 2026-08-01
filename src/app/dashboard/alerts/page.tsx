@@ -29,6 +29,10 @@ import {
   ArrowRight,
   Check,
   Loader2,
+  UserPlus,
+  ShieldCheck,
+  HeartHandshake,
+  FileSignature,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -81,6 +85,20 @@ const TYPE_META: Record<
   },
   agreement_disputed: { icon: FileWarning, route: () => null },
   rental_end_contested: { icon: DoorOpen, route: () => null },
+
+  // Pipeline events. Previously these had no producer at all, so an admin
+  // learned about a waiting verification only by opening the users queue.
+  user_signed_up: {
+    icon: UserPlus,
+    route: (a) => (a.targetId ? `/dashboard/users/${a.targetId}` : "/dashboard/users"),
+  },
+  verification_submitted: {
+    icon: ShieldCheck,
+    route: (a) =>
+      a.targetId ? `/dashboard/users/${a.targetId}` : "/dashboard/users",
+  },
+  rental_interest: { icon: HeartHandshake, route: () => "/dashboard/rent-attention" },
+  agreement_ready: { icon: FileSignature, route: () => null },
 };
 
 // Alert types whose case is resolved by a real action on a dedicated page —

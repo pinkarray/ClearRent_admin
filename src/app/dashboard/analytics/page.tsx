@@ -6,9 +6,12 @@ import {
   query,
   where,
   getCountFromServer,
+  getAggregateFromServer,
+  sum,
   onSnapshot,
   orderBy,
   limit,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { parseTimestamp } from "@/types";
@@ -50,7 +53,41 @@ interface AnalyticsData {
   availableProperties: number;
   occupiedProperties: number;
   verifiedProperties: number;
+  /// Properties + buildings whose ownership doc is awaiting admin review.
   pendingDocProperties: number;
+
+  // Money — naira totals from `payments` (status 'completed'), by type.
+  revenueRent: number;
+  revenueInspection: number;
+  revenueListing: number;
+  revenueVerification: number;
+  revenueRenewal: number;
+  refundsPending: number;
+  refundsPendingValue: number;
+
+  // Funnel — interest through to a started tenancy.
+  rentalInterests: number;
+  inspectionsRequested: number;
+  inspectionsPaid: number;
+  inspectionsCompleted: number;
+  rentalsStarted: number;
+
+  // Trends — last 7 days vs the 7 before it.
+  newUsers7d: number;
+  newUsersPrev7d: number;
+  newProperties7d: number;
+  newPropertiesPrev7d: number;
+  newInspections7d: number;
+  newInspectionsPrev7d: number;
+  revenue7d: number;
+  revenuePrev7d: number;
+
+  // Operational
+  totalBuildings: number;
+  moveOutsPending: number;
+  cautionDepositsHeld: number;
+  unknownAreaRequests: number;
+  verificationsExpiringSoon: number;
 
   // Rentals & Inspections
   activeRentals: number;
@@ -85,6 +122,15 @@ export default function AnalyticsPage() {
     verifiedUsers: 0, pendingVerifications: 0, rejectedVerifications: 0,
     totalProperties: 0, availableProperties: 0, occupiedProperties: 0,
     verifiedProperties: 0, pendingDocProperties: 0,
+    revenueRent: 0, revenueInspection: 0, revenueListing: 0,
+    revenueVerification: 0, revenueRenewal: 0,
+    refundsPending: 0, refundsPendingValue: 0,
+    rentalInterests: 0, inspectionsRequested: 0, inspectionsPaid: 0,
+    inspectionsCompleted: 0, rentalsStarted: 0,
+    newUsers7d: 0, newUsersPrev7d: 0, newProperties7d: 0, newPropertiesPrev7d: 0,
+    newInspections7d: 0, newInspectionsPrev7d: 0, revenue7d: 0, revenuePrev7d: 0,
+    totalBuildings: 0, moveOutsPending: 0, cautionDepositsHeld: 0,
+    unknownAreaRequests: 0, verificationsExpiringSoon: 0,
     activeRentals: 0, completedInspections: 0, pendingInspections: 0,
     pendingPayments: 0, confirmedInspectionPayments: 0, pendingAgentPayouts: 0,
     openIssues: 0, inProgressIssues: 0, resolvedIssues: 0, highPriorityIssues: 0,
@@ -101,7 +147,7 @@ export default function AnalyticsPage() {
           totalUsersSnap, landlordsSnap, tenantsSnap, agentsSnap,
           verifiedUsersSnap, pendingVerifSnap, rejectedVerifSnap,
           totalPropsSnap, availPropsSnap, occupiedPropsSnap,
-          verifiedPropsSnap, pendingDocPropsSnap,
+          verifiedPropsSnap, pendingDocPropsSnap, pendingDocBuildingsSnap,
           activeRentalsSnap, completedInspSnap, pendingInspSnap,
           pendingPaySnap, confirmedInspPaySnap, pendingPayoutsSnap,
           openIssuesSnap, inProgressIssuesSnap, resolvedIssuesSnap, highPrioritySnap,
@@ -115,9 +161,14 @@ export default function AnalyticsPage() {
           getCountFromServer(query(collection(db, "users"), where("verificationStatus", "==", "rejected"))),
           getCountFromServer(collection(db, "properties")),
           getCountFromServer(query(collection(db, "properties"), where("isAvailable", "==", true))),
-          getCountFromServer(query(collection(db, "properties"), where("isAvailable", "==", false))),
+          // Occupancy means a tenant is in it. `isAvailable == false` also covers
+          // every listing still awaiting admin review, which is not occupancy.
+          getCountFromServer(query(collection(db, "properties"), where("currentTenantsCount", ">", 0))),
           getCountFromServer(query(collection(db, "properties"), where("ownershipDocStatus", "==", "verified"))),
           getCountFromServer(query(collection(db, "properties"), where("ownershipDocStatus", "==", "pending"))),
+          // A unit in a building carries 'inherited'; the doc awaiting review is
+          // on the BUILDING, so property-only counts miss grouped listings.
+          getCountFromServer(query(collection(db, "buildings"), where("ownershipDocStatus", "==", "pending"))),
           getCountFromServer(query(collection(db, "active_rentals"), where("status", "==", "active"))),
           getCountFromServer(query(collection(db, "inspection_requests"), where("status", "==", "completed"))),
           getCountFromServer(query(collection(db, "inspection_requests"), where("status", "in", ["pending", "approved"]))),
@@ -145,7 +196,8 @@ export default function AnalyticsPage() {
           availableProperties: availPropsSnap.data().count,
           occupiedProperties: occupiedPropsSnap.data().count,
           verifiedProperties: verifiedPropsSnap.data().count,
-          pendingDocProperties: pendingDocPropsSnap.data().count,
+          pendingDocProperties:
+            pendingDocPropsSnap.data().count + pendingDocBuildingsSnap.data().count,
           activeRentals: activeRentalsSnap.data().count,
           completedInspections: completedInspSnap.data().count,
           pendingInspections: pendingInspSnap.data().count,
@@ -159,6 +211,154 @@ export default function AnalyticsPage() {
         }));
       } catch (e) {
         console.error("Analytics fetch error:", e);
+      }
+    }
+
+    // ── Money, funnel, trends, operational ──────────────────────────────────
+    //
+    // Split from fetchCounts so one failing aggregation (a missing composite
+    // index, most likely) can't blank the whole dashboard.
+    async function fetchDeepStats() {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const from7d = Timestamp.fromMillis(now - 7 * day);
+      const from14d = Timestamp.fromMillis(now - 14 * day);
+      const in30d = Timestamp.fromMillis(now + 30 * day);
+      const payments = collection(db, "payments");
+
+      // Revenue by type. Only 'completed' counts — an initiated-but-unpaid
+      // charge is not money.
+      const revenueOf = async (type: string) => {
+        const snap = await getAggregateFromServer(
+          query(payments, where("type", "==", type), where("status", "==", "completed")),
+          { total: sum("amount") }
+        );
+        return snap.data().total || 0;
+      };
+
+      const countOf = async (q: ReturnType<typeof query>) =>
+        (await getCountFromServer(q)).data().count;
+
+      try {
+        const [
+          rent, inspection, listing, verification, renewal,
+        ] = await Promise.all([
+          revenueOf("rent"),
+          revenueOf("inspection"),
+          revenueOf("listing"),
+          revenueOf("verification"),
+          revenueOf("renewal"),
+        ]);
+        if (cancelled) return;
+        setData((prev) => ({
+          ...prev,
+          revenueRent: rent,
+          revenueInspection: inspection,
+          revenueListing: listing,
+          revenueVerification: verification,
+          revenueRenewal: renewal,
+        }));
+      } catch (e) {
+        console.error("Revenue aggregation failed:", e);
+      }
+
+      try {
+        const [
+          refundsPending, refundsValue,
+          interests, inspRequested, inspPaid, inspCompleted, rentals,
+          buildings, moveOuts, unknownAreas, expiringVerifs,
+        ] = await Promise.all([
+          countOf(query(collection(db, "refunds"), where("status", "==", "pending"))),
+          getAggregateFromServer(
+            query(collection(db, "refunds"), where("status", "==", "pending")),
+            { total: sum("amount") }
+          ).then((s) => s.data().total || 0),
+          countOf(collection(db, "rental_interests")),
+          countOf(collection(db, "inspection_requests")),
+          countOf(query(collection(db, "inspection_requests"), where("paymentStatus", "==", "paid"))),
+          countOf(query(collection(db, "inspection_requests"), where("status", "==", "completed"))),
+          countOf(collection(db, "active_rentals")),
+          countOf(collection(db, "buildings")),
+          countOf(query(collection(db, "active_rentals"), where("status", "==", "moveout_pending"))),
+          countOf(query(collection(db, "admin_requests"), where("status", "==", "pending"))),
+          countOf(query(collection(db, "users"), where("verificationExpiresAt", "<=", in30d))),
+        ]);
+        if (cancelled) return;
+        setData((prev) => ({
+          ...prev,
+          refundsPending,
+          refundsPendingValue: refundsValue,
+          rentalInterests: interests,
+          inspectionsRequested: inspRequested,
+          inspectionsPaid: inspPaid,
+          inspectionsCompleted: inspCompleted,
+          rentalsStarted: rentals,
+          totalBuildings: buildings,
+          moveOutsPending: moveOuts,
+          unknownAreaRequests: unknownAreas,
+          verificationsExpiringSoon: expiringVerifs,
+        }));
+      } catch (e) {
+        console.error("Funnel/operational aggregation failed:", e);
+      }
+
+      // Caution deposits currently held across live tenancies.
+      try {
+        const snap = await getAggregateFromServer(
+          query(collection(db, "active_rentals"), where("status", "in", ["active", "expiring_soon", "grace_locked", "moveout_pending"])),
+          { total: sum("cautionDeposit") }
+        );
+        if (!cancelled) {
+          setData((prev) => ({ ...prev, cautionDepositsHeld: snap.data().total || 0 }));
+        }
+      } catch (e) {
+        console.error("Caution deposit aggregation failed:", e);
+      }
+
+      // Week-on-week. Each pair is [last 7 days, the 7 days before that].
+      const window = async (
+        col: string,
+        field = "createdAt"
+      ): Promise<[number, number]> => {
+        const [recent, previous] = await Promise.all([
+          countOf(query(collection(db, col), where(field, ">=", from7d))),
+          countOf(
+            query(
+              collection(db, col),
+              where(field, ">=", from14d),
+              where(field, "<", from7d)
+            )
+          ),
+        ]);
+        return [recent, previous];
+      };
+
+      try {
+        const [users, props, insps] = await Promise.all([
+          window("users"),
+          window("properties"),
+          window("inspection_requests"),
+        ]);
+        const [rev7, revPrev] = await Promise.all([
+          getAggregateFromServer(
+            query(payments, where("status", "==", "completed"), where("createdAt", ">=", from7d)),
+            { total: sum("amount") }
+          ).then((s) => s.data().total || 0),
+          getAggregateFromServer(
+            query(payments, where("status", "==", "completed"), where("createdAt", ">=", from14d), where("createdAt", "<", from7d)),
+            { total: sum("amount") }
+          ).then((s) => s.data().total || 0),
+        ]);
+        if (cancelled) return;
+        setData((prev) => ({
+          ...prev,
+          newUsers7d: users[0], newUsersPrev7d: users[1],
+          newProperties7d: props[0], newPropertiesPrev7d: props[1],
+          newInspections7d: insps[0], newInspectionsPrev7d: insps[1],
+          revenue7d: rev7, revenuePrev7d: revPrev,
+        }));
+      } catch (e) {
+        console.error("Trend aggregation failed (composite index may be missing):", e);
       }
     }
 
@@ -191,6 +391,7 @@ export default function AnalyticsPage() {
     );
 
     fetchCounts();
+    fetchDeepStats();
 
     return () => {
       cancelled = true;
@@ -257,6 +458,57 @@ export default function AnalyticsPage() {
             icon={XCircle}
             loading={data.loading}
           />
+        </div>
+      </Section>
+
+      {/* ── This week vs last ── */}
+      <Section title="Last 7 days" icon={TrendingUp}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <TrendStat label="Revenue" value={data.revenue7d} previous={data.revenuePrev7d} money loading={data.loading} />
+          <TrendStat label="New Users" value={data.newUsers7d} previous={data.newUsersPrev7d} loading={data.loading} />
+          <TrendStat label="New Listings" value={data.newProperties7d} previous={data.newPropertiesPrev7d} loading={data.loading} />
+          <TrendStat label="Inspections" value={data.newInspections7d} previous={data.newInspectionsPrev7d} loading={data.loading} />
+        </div>
+      </Section>
+
+      {/* ── Money ── */}
+      <Section title="Money" icon={Wallet}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <BigStat label="Rent Collected" value={naira(data.revenueRent)} color="emerald" loading={data.loading} />
+          <BigStat label="Inspection Fees" value={naira(data.revenueInspection)} color="blue" loading={data.loading} />
+          <BigStat label="Listing Fees" value={naira(data.revenueListing)} color="purple" loading={data.loading} />
+          <BigStat label="Verification Fees" value={naira(data.revenueVerification + data.revenueRenewal)} color="brand" loading={data.loading}
+            sub="incl. renewals" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+          <BigStat label="Total Collected" value={naira(data.revenueRent + data.revenueInspection + data.revenueListing + data.revenueVerification + data.revenueRenewal)} color="emerald" loading={data.loading} />
+          <BigStat label="Refunds Owed" value={naira(data.refundsPendingValue)} color="amber" loading={data.loading}
+            sub={`${data.refundsPending} pending`} onClick={() => router.push("/dashboard/payments")} />
+          <BigStat label="Deposits Held" value={naira(data.cautionDepositsHeld)} color="blue" loading={data.loading}
+            sub="tenant caution money" />
+        </div>
+      </Section>
+
+      {/* ── Funnel ── */}
+      <Section title="Tenant Funnel" icon={Activity}>
+        <div className="space-y-2">
+          <FunnelRow label="Rental interests" value={data.rentalInterests} top={data.rentalInterests} />
+          <FunnelRow label="Inspections requested" value={data.inspectionsRequested} top={data.rentalInterests} />
+          <FunnelRow label="Inspections paid" value={data.inspectionsPaid} top={data.rentalInterests} />
+          <FunnelRow label="Inspections completed" value={data.inspectionsCompleted} top={data.rentalInterests} />
+          <FunnelRow label="Tenancies started" value={data.rentalsStarted} top={data.rentalInterests} />
+        </div>
+      </Section>
+
+      {/* ── Operations ── */}
+      <Section title="Operations" icon={AlertTriangle}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <BigStat label="Buildings" value={data.totalBuildings} color="brand" loading={data.loading} onClick={() => router.push("/dashboard/properties")} />
+          <BigStat label="Move-outs in flight" value={data.moveOutsPending} color="amber" loading={data.loading} />
+          <BigStat label="Unknown areas" value={data.unknownAreaRequests} color="blue" loading={data.loading}
+            sub="landlord-reported" />
+          <BigStat label="Verifications expiring" value={data.verificationsExpiringSoon} color="amber" loading={data.loading}
+            sub="next 30 days" onClick={() => router.push("/dashboard/verifications")} />
         </div>
       </Section>
 
@@ -402,7 +654,7 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 function BigStat({ label, value, color, loading, sub, onClick }: {
-  label: string; value: number; color: string; loading: boolean; sub?: string; onClick?: () => void;
+  label: string; value: number | string; color: string; loading: boolean; sub?: string; onClick?: () => void;
 }) {
   return (
     <div
@@ -413,11 +665,90 @@ function BigStat({ label, value, color, loading, sub, onClick }: {
         <div className="h-8 w-16 bg-[rgb(var(--border))] rounded animate-pulse mb-1" />
       ) : (
         <p className={cn("text-3xl font-bold font-display", COLOR_MAP[color] || COLOR_MAP.brand)}>
-          {value.toLocaleString()}
+          {typeof value === "number" ? value.toLocaleString() : value}
         </p>
       )}
       <p className="text-xs text-[rgb(var(--text-hint))] mt-1">{label}</p>
       {sub && <p className="text-[10px] text-[rgb(var(--text-hint))] mt-0.5 opacity-70">{sub}</p>}
+    </div>
+  );
+}
+
+// ─── Money / trend / funnel helpers ──────────────────────────────────────────
+
+/** Compact naira. Amounts are stored in naira, not kobo. */
+function naira(amount: number): string {
+  if (amount >= 1_000_000) return `₦${(amount / 1_000_000).toFixed(1)}m`;
+  if (amount >= 1_000) return `₦${(amount / 1_000).toFixed(0)}k`;
+  return `₦${amount.toLocaleString()}`;
+}
+
+/**
+ * A count for the last 7 days against the 7 before it. With no prior activity
+ * there is no percentage to show — "no change" would be a lie when the previous
+ * window is zero, so it shows the raw baseline instead.
+ */
+function TrendStat({ label, value, previous, money, loading }: {
+  label: string; value: number; previous: number; money?: boolean; loading: boolean;
+}) {
+  const delta = value - previous;
+  const pctChange = previous > 0 ? Math.round((delta / previous) * 100) : null;
+  const up = delta > 0;
+  const flat = delta === 0;
+
+  return (
+    <div className="card p-4">
+      {loading ? (
+        <div className="h-8 w-16 bg-[rgb(var(--border))] rounded animate-pulse mb-1" />
+      ) : (
+        <p className="text-3xl font-bold font-display text-[rgb(var(--text-primary))]">
+          {money ? naira(value) : value.toLocaleString()}
+        </p>
+      )}
+      <p className="text-xs text-[rgb(var(--text-hint))] mt-1">{label}</p>
+      <p
+        className={cn(
+          "text-[10px] mt-0.5",
+          flat
+            ? "text-[rgb(var(--text-hint))]"
+            : up
+            ? "text-emerald-500"
+            : "text-red-500"
+        )}
+      >
+        {flat
+          ? "no change"
+          : pctChange === null
+          ? `${up ? "+" : ""}${money ? naira(delta) : delta} vs none before`
+          : `${up ? "▲" : "▼"} ${Math.abs(pctChange)}% vs previous 7 days`}
+      </p>
+    </div>
+  );
+}
+
+/** One stage of the tenant funnel, as a share of the first stage. */
+function FunnelRow({ label, value, top }: { label: string; value: number; top: number }) {
+  const width = top > 0 ? Math.max((value / top) * 100, 2) : 0;
+  const share = top > 0 ? Math.round((value / top) * 100) : 0;
+  return (
+    <div className="card p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm text-[rgb(var(--text-secondary))]">{label}</span>
+        <span className="text-sm font-semibold text-[rgb(var(--text-primary))]">
+          {value.toLocaleString()}
+          {top > 0 && (
+            <span className="text-xs text-[rgb(var(--text-hint))] font-normal ml-1.5">
+              {share}%
+            </span>
+          )}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-[rgb(var(--border))] overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[rgb(var(--brand))] transition-all"
+          style={{ width: `${width}%` }}
+        />
+      </div>
     </div>
   );
 }

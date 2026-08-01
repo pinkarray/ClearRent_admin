@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { ClearRentUser, parseTimestamp } from "@/types";
 import { cn, capitalize, timeAgo } from "@/lib/utils";
@@ -20,19 +20,54 @@ export default function UsersPage() {
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedUser, setSelectedUser] = useState<ClearRentUser | null>(null);
+  const [authActivity, setAuthActivity] = useState<
+    Record<string, { lastSignInTime: string | null; creationTime: string | null; disabled: boolean }>
+  >({});
 
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, (snap) => {
       const parsed: ClearRentUser[] = snap.docs.filter((d) => d.id !== user?.uid).map((d) => {
         const data = d.data();
-        return { id: d.id, uid: data.uid || d.id, fullName: data.fullName || "Unknown", fullNameLower: data.fullNameLower, email: data.email || "", phone: data.phone || "", accountType: data.accountType || "tenant", profileCompleted: data.profileCompleted || false, emailVerified: data.emailVerified || false, profileImageUrl: data.profileImageUrl, verificationStatus: data.verificationStatus || "none", isVerified: data.isVerified || false, verificationSubmittedAt: parseTimestamp(data.verificationSubmittedAt), verificationReviewedAt: parseTimestamp(data.verificationReviewedAt), rejectionReason: data.rejectionReason, baseLocation: data.baseLocation, serviceAreas: data.serviceAreas, rating: data.rating, totalInspections: data.totalInspections, totalRatings: data.totalRatings, allowsCalls: data.allowsCalls, createdAt: parseTimestamp(data.createdAt), updatedAt: parseTimestamp(data.updatedAt) };
+        return { id: d.id, uid: data.uid || d.id, fullName: data.fullName || "Unknown", fullNameLower: data.fullNameLower, email: data.email || "", phone: data.phone || "", accountType: data.accountType || "tenant", profileCompleted: data.profileCompleted || false, emailVerified: data.emailVerified || false, profileImageUrl: data.profileImageUrl, verificationStatus: data.verificationStatus || "none", isVerified: data.isVerified || false, verificationSubmittedAt: parseTimestamp(data.verificationSubmittedAt), verificationReviewedAt: parseTimestamp(data.verificationReviewedAt), rejectionReason: data.rejectionReason, baseLocation: data.baseLocation, serviceAreas: data.serviceAreas, rating: data.rating, totalInspections: data.totalInspections, totalRatings: data.totalRatings, allowsCalls: data.allowsCalls, lastSeenAt: parseTimestamp(data.lastSeenAt), createdAt: parseTimestamp(data.createdAt), updatedAt: parseTimestamp(data.updatedAt) };
       });
       setUsers(parsed);
       setLoading(false);
     });
     return () => unsub();
   }, []);
+
+  // Last login comes from Firebase Auth (server-side), not from a Firestore
+  // field — it's recorded on every real sign-in, works for accounts that
+  // predate any tracking we added, and can't be forged by a client.
+  useEffect(() => {
+    if (users.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) return;
+        const res = await fetch("/api/user-activity", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ uids: users.map((u) => u.uid) }),
+        });
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        setAuthActivity(json.users || {});
+      } catch {
+        // Non-fatal: the table still renders, last login shows as unknown.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [users]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -102,6 +137,7 @@ export default function UsersPage() {
                 <th className="text-left text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider px-5 py-3">Type</th>
                 <th className="text-left text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider px-5 py-3">Status</th>
                 <th className="text-left text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider px-5 py-3">Phone</th>
+                <th className="text-left text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider px-5 py-3">Activity</th>
                 <th className="text-left text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider px-5 py-3">Joined</th>
                 <th className="w-12"></th>
               </tr></thead>
@@ -111,6 +147,7 @@ export default function UsersPage() {
                   <td className="px-5 py-4"><TypeBadge type={user.accountType} /></td>
                   <td className="px-5 py-4"><StatusBadge status={user.verificationStatus || "none"} /></td>
                   <td className="px-5 py-4 text-sm text-[rgb(var(--text-secondary))]">{user.phone || "—"}</td>
+                  <td className="px-5 py-4"><ActivityCell lastSeenAt={user.lastSeenAt} lastSignInTime={authActivity[user.uid]?.lastSignInTime} /></td>
                   <td className="px-5 py-4 text-sm text-[rgb(var(--text-hint))]">{user.createdAt ? timeAgo(user.createdAt) : "—"}</td>
                   <td className="px-3"><MoreVertical size={16} className="text-[rgb(var(--text-hint))]" /></td>
                 </tr>
@@ -128,6 +165,50 @@ export default function UsersPage() {
       )}
 
       {selectedUser && <UserDetailPanel user={selectedUser} onClose={() => setSelectedUser(null)} />}
+    </div>
+  );
+}
+
+/** How recent a heartbeat has to be to count as "active now". */
+const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
+
+/**
+ * Two different signals, deliberately shown together:
+ *  - "Active now" / "Seen 2h ago" — the device heartbeat (`lastSeenAt`). Absent
+ *    for anyone who hasn't opened a build that writes it, so absence means
+ *    "unknown", never "offline".
+ *  - "Last login" — Firebase Auth's own record, available for every account.
+ */
+function ActivityCell({
+  lastSeenAt,
+  lastSignInTime,
+}: {
+  lastSeenAt?: Date;
+  lastSignInTime?: string | null;
+}) {
+  const isActive =
+    !!lastSeenAt && Date.now() - lastSeenAt.getTime() < ACTIVE_WINDOW_MS;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {isActive ? (
+        <span className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          Active now
+        </span>
+      ) : lastSeenAt ? (
+        <span className="flex items-center gap-1.5 text-sm text-[rgb(var(--text-secondary))]">
+          <span className="w-2 h-2 rounded-full bg-[rgb(var(--text-hint))]/40 shrink-0" />
+          Seen {timeAgo(lastSeenAt)}
+        </span>
+      ) : (
+        <span className="text-sm text-[rgb(var(--text-hint))]">—</span>
+      )}
+      <span className="text-xs text-[rgb(var(--text-hint))]">
+        {lastSignInTime
+          ? `Login ${timeAgo(new Date(lastSignInTime))}`
+          : "Never signed in"}
+      </span>
     </div>
   );
 }

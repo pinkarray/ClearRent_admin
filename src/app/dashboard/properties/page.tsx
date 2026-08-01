@@ -548,7 +548,11 @@ function PropertyCard({
               Verify
             </button>
             <button
-              onClick={() => {}} // opens panel for rejection reason
+              // Opens the detail panel, which holds the document viewer and the
+              // rejection-reason form. This was an empty handler, and because
+              // the wrapper stops propagation it also blocked the card's own
+              // click — so the button did nothing at all.
+              onClick={onView}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 text-xs font-semibold hover:bg-red-500/20 transition-colors"
             >
               <Eye size={11} />

@@ -39,6 +39,11 @@ export function AttentionBanner() {
   // changes, …) — the unified feed on /dashboard/alerts.
   const [openAlerts, setOpenAlerts] = useState(0);
 
+  // Pending building ownership docs. A unit inside a building carries
+  // `inherited`, never `pending` — the doc awaiting review sits on the BUILDING.
+  // Counting only properties made every grouped-unit listing invisible here.
+  const [pendingBuildingDocs, setPendingBuildingDocs] = useState(0);
+
   useEffect(() => {
     const q = query(
       collection(db, "properties"),
@@ -46,6 +51,17 @@ export function AttentionBanner() {
     );
     const unsub = onSnapshot(q, (snap) => {
       setPendingPropertyDocs(snap.size);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "buildings"),
+      where("ownershipDocStatus", "==", "pending")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setPendingBuildingDocs(snap.size);
     });
     return () => unsub();
   }, []);
@@ -106,6 +122,7 @@ export function AttentionBanner() {
       stats.openIssues > 0 ||
       stats.pendingPayments > 0 ||
       pendingPropertyDocs > 0 ||
+      pendingBuildingDocs > 0 ||
       inspectionReviews > 0 ||
       pendingRefunds > 0 ||
       pendingRentReviews > 0 ||
@@ -141,6 +158,16 @@ export function AttentionBanner() {
               >
                 <FileCheck size={14} />
                 {pendingPropertyDocs} propert{pendingPropertyDocs !== 1 ? "ies" : "y"} awaiting review
+                <ArrowRight size={12} />
+              </button>
+            )}
+            {pendingBuildingDocs > 0 && (
+              <button
+                onClick={() => router.push("/dashboard/properties")}
+                className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:underline"
+              >
+                <FileCheck size={14} />
+                {pendingBuildingDocs} building{pendingBuildingDocs !== 1 ? "s" : ""} awaiting review
                 <ArrowRight size={12} />
               </button>
             )}
