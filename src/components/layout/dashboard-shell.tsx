@@ -119,10 +119,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                         router.push(item.href);
                         setMobileOpen(false);
                       }}
+                      // Matches the web app's nav language: the active item is
+                      // a SOLID filled pill, not a 10% tint. A tint reads as
+                      // "slightly different" and needs a second look; a filled
+                      // pill is unmistakable at a glance.
                       className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-full text-sm font-medium transition-all duration-200",
                         isActive
-                          ? "bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))]"
+                          ? "bg-[rgb(var(--brand))] text-white shadow-sm"
                           : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] hover:text-[rgb(var(--text-primary))]",
                         collapsed && "justify-center px-0"
                       )}
