@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { AdminAlert, isRoutineInfo } from "@/lib/alerts";
 
 /**
  * "Items needing your attention" banner. Mounted in the dashboard shell so it
@@ -105,11 +106,12 @@ export function AttentionBanner() {
       where("status", "==", "open")
     );
     const unsub = onSnapshot(q, (snap) => {
-      // Only actionable alerts belong in the attention banner. Info-level
-      // items (inspection lifecycle, rent payments, the daily digest) live in
-      // the Alerts feed but shouldn't inflate "needs your attention".
+      // Only alerts with an open case belong in the banner — routine info
+      // (sign-ups, rent payments, the daily digest, finished inspections) lives
+      // in the Alerts feed but shouldn't inflate "needs your attention".
+      // Severity alone won't do: an inspection awaiting approval is `info`.
       const actionable = snap.docs.filter(
-        (d) => d.data().severity !== "info"
+        (d) => !isRoutineInfo({ id: d.id, ...d.data() } as AdminAlert)
       ).length;
       setOpenAlerts(actionable);
     });

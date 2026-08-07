@@ -17,13 +17,18 @@ import {
   Gavel,
   CheckCircle2,
   Hourglass,
+  FileSignature,
 } from "lucide-react";
 
 // ─── Rent Attention (money-flow gaps G1/G3/G4) ───────────────────────────────
-// Surfaces the two rent states where money is stuck and a human needs to act:
+// Surfaces the rent states where money is stuck and a human needs to act:
 //   • Stranded — tenant paid + admin-verified, but the landlord never accepted
 //     (rental_interests at payment_verified). The strand sweep flags the aged
 //     ones; admin chases the landlord or refunds the tenant out-of-band.
+//   • Unaccepted — the landlord sent the agreement and the tenant hasn't acted
+//     (active_rentals agreementStatus == pending_review). Rent can't be paid
+//     until it's finalized, so a stalled one silently halts the whole funnel.
+//     This is where the `agreement_ready` admin alert lands.
 //   • Disputed — the tenant is disputing the tenancy agreement (active_rentals
 //     agreementStatus == disputed). The payout gate HOLDS the landlord/agent
 //     money until resolved; admin can force-finalize once settled.
@@ -38,6 +43,17 @@ interface Stranded {
   rentAmount: number;
   verifiedAt: Date | null;
   strandedForReview: boolean;
+}
+
+interface Unaccepted {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  landlordId: string;
+  landlordName: string;
+  propertyTitle: string;
+  rentAmount: number;
+  uploadedAt: Date | null;
 }
 
 interface Disputed {
@@ -68,6 +84,7 @@ function naira(n: number) {
 export default function RentAttentionPage() {
   const router = useRouter();
   const [stranded, setStranded] = useState<Stranded[]>([]);
+  const [unaccepted, setUnaccepted] = useState<Unaccepted[]>([]);
   const [disputed, setDisputed] = useState<Disputed[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -96,6 +113,31 @@ export default function RentAttentionPage() {
       () => setLoading(false)
     );
 
+    const unsubUnaccepted = onSnapshot(
+      query(
+        collection(db, "active_rentals"),
+        where("agreementStatus", "==", "pending_review")
+      ),
+      (snap) => {
+        setUnaccepted(
+          snap.docs.map((d) => {
+            const x = d.data();
+            return {
+              id: d.id,
+              tenantId: (x.tenantId as string) ?? "",
+              tenantName: (x.tenantName as string) || "Tenant",
+              landlordId: (x.landlordId as string) ?? "",
+              landlordName: (x.landlordName as string) || "Landlord",
+              propertyTitle: (x.propertyTitle as string) || "Property",
+              rentAmount: (x.rentAmount as number) ?? 0,
+              uploadedAt: toDate(x.agreementUploadedAt),
+            };
+          })
+        );
+      },
+      () => {}
+    );
+
     const unsubDisputed = onSnapshot(
       query(collection(db, "active_rentals"), where("agreementStatus", "==", "disputed")),
       (snap) => {
@@ -121,6 +163,7 @@ export default function RentAttentionPage() {
 
     return () => {
       unsubStranded();
+      unsubUnaccepted();
       unsubDisputed();
     };
   }, []);
@@ -138,6 +181,15 @@ export default function RentAttentionPage() {
 
   const flaggedCount = stranded.filter((s) => s.strandedForReview).length;
 
+  // Longest-waiting agreement first — that's the one most likely stuck.
+  const unacceptedSorted = useMemo(
+    () =>
+      [...unaccepted].sort(
+        (a, b) => (a.uploadedAt?.getTime() ?? 0) - (b.uploadedAt?.getTime() ?? 0)
+      ),
+    [unaccepted]
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -150,9 +202,10 @@ export default function RentAttentionPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile label="Awaiting landlord" value={stranded.length} tone="amber" icon={Hourglass} />
         <StatTile label="Stranded (flagged)" value={flaggedCount} tone="red" icon={AlertTriangle} />
+        <StatTile label="Agreement unaccepted" value={unaccepted.length} tone="amber" icon={FileSignature} />
         <StatTile label="Disputed (payout held)" value={disputed.length} tone="red" icon={Gavel} />
       </div>
 
@@ -174,6 +227,22 @@ export default function RentAttentionPage() {
             ) : (
               strandedSorted.map((s) => (
                 <StrandedCard key={s.id} item={s} router={router} />
+              ))
+            )}
+          </section>
+
+          {/* Agreement sent, tenant hasn't acted */}
+          <section className="space-y-3">
+            <SectionHeader
+              icon={FileSignature}
+              title="Agreement sent — awaiting tenant"
+              count={unacceptedSorted.length}
+            />
+            {unacceptedSorted.length === 0 ? (
+              <EmptyNote text="No agreements waiting on a tenant." />
+            ) : (
+              unacceptedSorted.map((u) => (
+                <UnacceptedCard key={u.id} item={u} router={router} />
               ))
             )}
           </section>
@@ -231,6 +300,53 @@ function StrandedCard({ item, router }: { item: Stranded; router: ReturnType<typ
         <ShieldQuestion size={13} className="shrink-0 mt-0.5" />
         Chase the landlord to accept, or refund the tenant. No money moves
         automatically — this is a review queue.
+      </p>
+    </div>
+  );
+}
+
+function UnacceptedCard({
+  item,
+  router,
+}: {
+  item: Unaccepted;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const waiting = daysSince(item.uploadedAt);
+  return (
+    <div className={cn("card", waiting >= 7 && "border-amber-500/30")}>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="space-y-2 min-w-0">
+          <div className="flex items-center gap-2">
+            <Home size={15} className="text-[rgb(var(--brand))] shrink-0" />
+            <span className="font-semibold text-sm text-[rgb(var(--text-primary))]">
+              {item.propertyTitle}
+            </span>
+            {waiting >= 7 && (
+              <span className="badge-warning gap-1 text-[10px]">
+                <Clock size={10} /> {waiting}d
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[rgb(var(--text-secondary))]">
+            <PersonBtn label="tenant (not accepted)" uid={item.tenantId} name={item.tenantName} router={router} />
+            <PersonBtn label="landlord (sent it)" uid={item.landlordId} name={item.landlordName} router={router} />
+            <span className="flex items-center gap-1">
+              <Clock size={12} /> sent {waiting} day{waiting === 1 ? "" : "s"} ago
+            </span>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="font-mono font-semibold text-sm text-[rgb(var(--text-primary))]">
+            {naira(item.rentAmount)}
+          </p>
+          <p className="text-[11px] text-[rgb(var(--text-hint))]">rent blocked</p>
+        </div>
+      </div>
+      <p className="mt-3 pt-3 border-t border-[rgb(var(--border))] text-xs text-[rgb(var(--text-hint))] flex items-start gap-1.5">
+        <ShieldQuestion size={13} className="shrink-0 mt-0.5" />
+        The tenant must accept before rent can be paid. Nudge them, or check the
+        landlord uploaded the right document — this is a review queue.
       </p>
     </div>
   );

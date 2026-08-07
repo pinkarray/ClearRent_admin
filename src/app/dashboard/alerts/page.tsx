@@ -8,6 +8,7 @@ import {
   onSnapshot,
   doc,
   updateDoc,
+  writeBatch,
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
@@ -15,6 +16,12 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { cn, timeAgo } from "@/lib/utils";
+import {
+  AdminAlert,
+  RESOLVE_ON_PAGE,
+  hasOpenWork,
+  isRoutineInfo,
+} from "@/lib/alerts";
 import {
   Bell,
   Flag,
@@ -28,6 +35,7 @@ import {
   ClipboardList,
   ArrowRight,
   Check,
+  CheckCheck,
   Loader2,
   UserPlus,
   ShieldCheck,
@@ -36,18 +44,6 @@ import {
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-
-interface AdminAlert {
-  id: string;
-  type: string;
-  severity: "info" | "warning" | "critical";
-  title: string;
-  body: string;
-  targetCollection?: string;
-  targetId?: string;
-  actors?: { tenantId?: string; agentId?: string; landlordId?: string };
-  createdAt: Date | null;
-}
 
 function toDate(v: unknown): Date | null {
   if (v instanceof Timestamp) return v.toDate();
@@ -79,11 +75,17 @@ const TYPE_META: Record<
   rent_payment: { icon: Banknote, route: () => "/dashboard/rent-payouts" },
   issue_reported: { icon: AlertTriangle, route: () => "/dashboard/issues" },
   issue_fix_disputed: { icon: AlertTriangle, route: () => "/dashboard/issues" },
+  issue_pending_stale: { icon: AlertTriangle, route: () => "/dashboard/issues" },
   profile_identity_change: {
     icon: UserCog,
     route: (a) => (a.targetId ? `/dashboard/users/${a.targetId}` : null),
   },
-  agreement_disputed: { icon: FileWarning, route: () => null },
+  // Both agreement states are worked from Rent Attention: it lists disputed
+  // agreements (with force-finalize) and the ones still waiting on the tenant.
+  agreement_disputed: {
+    icon: FileWarning,
+    route: () => "/dashboard/rent-attention",
+  },
   rental_end_contested: { icon: DoorOpen, route: () => null },
 
   // Pipeline events. Previously these had no producer at all, so an admin
@@ -98,17 +100,10 @@ const TYPE_META: Record<
       a.targetId ? `/dashboard/users/${a.targetId}` : "/dashboard/users",
   },
   rental_interest: { icon: HeartHandshake, route: () => "/dashboard/rent-attention" },
-  agreement_ready: { icon: FileSignature, route: () => null },
-};
-
-// Alert types whose case is resolved by a real action on a dedicated page —
-// that action (via its Cloud Function) closes the alert automatically. These
-// must NOT be dismissible here, or the notice would clear while the underlying
-// dispute/request stays open. Everything else is oversight/FYI: seeing it is
-// the whole job, so a manual "Dismiss" is honest.
-const RESOLVE_ON_PAGE: Record<string, string> = {
-  inspection_dispute: "Inspection Reviews",
-  rent_change_request: "Rent Reviews",
+  agreement_ready: {
+    icon: FileSignature,
+    route: () => "/dashboard/rent-attention",
+  },
 };
 
 const SEVERITY_STYLES: Record<AdminAlert["severity"], string> = {
@@ -126,6 +121,7 @@ export default function AlertsPage() {
   const [items, setItems] = useState<AdminAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     // Equality-only query (no composite index needed); sorted client-side.
@@ -147,6 +143,7 @@ export default function AlertsPage() {
             targetCollection: x.targetCollection as string | undefined,
             targetId: x.targetId as string | undefined,
             actors: x.actors as AdminAlert["actors"],
+            meta: x.meta as AdminAlert["meta"],
             createdAt: toDate(x.createdAt),
           } as AdminAlert;
         });
@@ -166,8 +163,12 @@ export default function AlertsPage() {
     [items]
   );
 
-  // Dismiss = acknowledge an oversight/FYI alert. Only offered for alerts that
-  // have no case to resolve elsewhere (see RESOLVE_ON_PAGE).
+  // Only routine info can be cleared in bulk — see isRoutineInfo. Anything with
+  // an open case is left for a human, however quiet its severity.
+  const routine = useMemo(() => items.filter(isRoutineInfo), [items]);
+
+  // Dismiss = acknowledge an alert. Offered for everything except the types a
+  // Cloud Function closes for us (see RESOLVE_ON_PAGE).
   async function dismissAlert(item: AdminAlert) {
     if (!canWrite || !user) return;
     setBusyId(item.id);
@@ -187,22 +188,73 @@ export default function AlertsPage() {
     }
   }
 
+  // Clear every routine-info alert at once. Batched (500-doc limit is far above
+  // any realistic backlog of these).
+  async function dismissRoutine() {
+    if (!canWrite || !user || routine.length === 0) return;
+    if (
+      !window.confirm(
+        `Dismiss ${routine.length} routine alert${
+          routine.length === 1 ? "" : "s"
+        }? Anything with open work is left alone.`
+      )
+    ) {
+      return;
+    }
+    setClearing(true);
+    try {
+      const batch = writeBatch(db);
+      for (const item of routine) {
+        batch.update(doc(db, "admin_alerts", item.id), {
+          status: "resolved",
+          resolvedBy: user.uid,
+          resolvedAt: serverTimestamp(),
+        });
+      }
+      await batch.commit();
+    } catch (err) {
+      console.error("Failed to dismiss routine alerts", err);
+      window.alert(
+        err instanceof Error ? err.message : "Couldn't dismiss. Try again."
+      );
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-display font-bold text-[rgb(var(--text-primary))]">
-          Alerts
-        </h1>
-        <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-          Live feed of things needing attention across the app — disputes, rent
-          changes, agreement issues, identity changes and more.
-          {criticalCount > 0 && (
-            <span className="ml-1 font-medium text-red-500">
-              {criticalCount} critical.
-            </span>
-          )}
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-display font-bold text-[rgb(var(--text-primary))]">
+            Alerts
+          </h1>
+          <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
+            Live feed of things needing attention across the app — disputes, rent
+            changes, agreement issues, identity changes and more.
+            {criticalCount > 0 && (
+              <span className="ml-1 font-medium text-red-500">
+                {criticalCount} critical.
+              </span>
+            )}
+          </p>
+        </div>
+        {canWrite && routine.length > 0 && (
+          <button
+            onClick={dismissRoutine}
+            disabled={clearing}
+            title="Clears sign-ups, rent payments, the daily digest and finished inspections. Alerts with open work stay."
+            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50 shrink-0"
+          >
+            {clearing ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <CheckCheck size={14} />
+            )}
+            Dismiss all routine ({routine.length})
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -223,9 +275,12 @@ export default function AlertsPage() {
             const Icon = meta?.icon ?? Bell;
             const route = meta?.route(item) ?? null;
             const busy = busyId === item.id;
-            // Actionable cases are resolved on their page (which closes this
-            // alert); FYI alerts are dismissible here.
+            // Two different reasons a card isn't just an FYI: `resolvePage`
+            // types close themselves when the admin acts (so no Dismiss at
+            // all), while `openWork` types need a human to decide they're done
+            // (so Dismiss stays, but the card says it resolves nothing).
             const resolvePage = RESOLVE_ON_PAGE[item.type];
+            const openWork = hasOpenWork(item);
             return (
               <div key={item.id} className="card">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -260,12 +315,17 @@ export default function AlertsPage() {
                           {timeAgo(item.createdAt)}
                         </p>
                       )}
-                      {resolvePage && (
+                      {resolvePage ? (
                         <p className="text-[11px] text-[rgb(var(--text-hint))] mt-1 italic">
                           Resolve this from {resolvePage} — it clears here
                           automatically.
                         </p>
-                      )}
+                      ) : openWork ? (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 italic">
+                          Still open — dismissing this acknowledges it, it
+                          doesn&apos;t resolve it.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex gap-2 shrink-0">
@@ -286,7 +346,7 @@ export default function AlertsPage() {
                             onClick={() => router.push(route)}
                             className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))]"
                           >
-                            View
+                            {openWork ? "Review" : "View"}
                             <ArrowRight size={14} />
                           </button>
                         )}
