@@ -607,20 +607,46 @@ function RentPayoutDetailPanel({
                 </div>
               )}
               <hr className="border-[rgb(var(--border))]" />
+
+              {/* What ClearRent SENDS OUT */}
               <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
-                <span>Landlord payout</span>
+                <span>→ Landlord{payout.landlordName ? ` · ${payout.landlordName}` : ""}</span>
                 <span className="font-mono">{formatNaira(payout.landlordPayout)}</span>
               </div>
-              {payout.agentPayout > 0 && (
+
+              {/* Shown whenever an agent is ON the deal, not only when the
+                  payout is positive. The old `agentPayout > 0` gate hid
+                  negative splits entirely, which is what made the breakdown
+                  look impossible: ClearRent appeared to keep the whole
+                  payment while still paying the landlord, because a negative
+                  agent row was silently missing from the arithmetic. */}
+              {payout.agentId && (
                 <div className="flex justify-between text-blue-600 dark:text-blue-400 font-semibold">
-                  <span>Agent payout</span>
+                  <span>→ Agent{payout.agentName ? ` · ${payout.agentName}` : ""}</span>
                   <span className="font-mono">{formatNaira(payout.agentPayout)}</span>
                 </div>
               )}
+              {!payout.agentId && (
+                <div className="flex justify-between text-[rgb(var(--text-hint))]">
+                  <span>Agent</span>
+                  <span>None on this deal</span>
+                </div>
+              )}
+
+              <div className="flex justify-between border-t border-[rgb(var(--border))] pt-1.5 font-semibold">
+                <span className="text-[rgb(var(--text-secondary))]">
+                  ClearRent sends out
+                </span>
+                <span className="font-mono">
+                  {formatNaira(payout.landlordPayout + payout.agentPayout)}
+                </span>
+              </div>
               <div className="flex justify-between text-[rgb(var(--brand))] font-semibold">
                 <span>ClearRent keeps</span>
                 <span className="font-mono">{formatNaira(payout.clearrentEarnings)}</span>
               </div>
+
+              <BreakdownCheck payout={payout} />
             </div>
           </div>
 
@@ -807,6 +833,61 @@ function DetailRow({ icon: Icon, label, value }: { icon: any; label: string; val
         <p className="text-[10px] text-[rgb(var(--text-hint))]">{label}</p>
         <p className="text-sm text-[rgb(var(--text-primary))] truncate">{value}</p>
       </div>
+    </div>
+  );
+}
+/**
+ * Says out loud when a split does not make sense.
+ *
+ * The three lines above are read as a statement of fact, so a split that
+ * cannot be paid has to announce itself rather than sit there looking like a
+ * rendering quirk. Two things go wrong in practice:
+ *
+ *  - a NEGATIVE payout, when the deal fees taken out of the rent exceed the
+ *    rent itself. Nothing clamps this at interest creation, and the figure is
+ *    stored as-is;
+ *  - parts that do not add up to what the tenant actually paid, which means
+ *    the stored figures cannot all be true.
+ *
+ * A zero landlord payout is legal arithmetic but still unpayable, so it is
+ * called out separately — the landlord is owed nothing and no transfer can be
+ * made.
+ */
+function BreakdownCheck({ payout }: { payout: RentPayout }) {
+  const parts =
+    payout.landlordPayout + payout.agentPayout + payout.clearrentEarnings;
+  const reconciles = Math.abs(parts - payout.totalPaid) < 1;
+  const negative = payout.landlordPayout < 0 || payout.agentPayout < 0;
+  const zeroLandlord = payout.landlordPayout === 0;
+
+  if (reconciles && !negative && !zeroLandlord) return null;
+
+  return (
+    <div className="mt-2 p-3 rounded-xl bg-red-500/5 border border-red-500/20 space-y-1">
+      <div className="flex items-center gap-2">
+        <AlertTriangle size={14} className="text-red-500 shrink-0" />
+        <p className="text-xs font-semibold text-[rgb(var(--text-primary))]">
+          This split cannot be paid as it stands
+        </p>
+      </div>
+      {negative && (
+        <p className="text-xs text-[rgb(var(--text-secondary))]">
+          A payout is negative — the fees deducted exceed the rent of{" "}
+          {formatNaira(payout.rentAmount)}. Settle manually; do not transfer.
+        </p>
+      )}
+      {!negative && zeroLandlord && (
+        <p className="text-xs text-[rgb(var(--text-secondary))]">
+          The landlord is owed nothing: the rent of{" "}
+          {formatNaira(payout.rentAmount)} was fully consumed by fees.
+        </p>
+      )}
+      {!reconciles && (
+        <p className="text-xs text-[rgb(var(--text-secondary))]">
+          Payouts plus earnings come to {formatNaira(parts)}, but the tenant
+          paid {formatNaira(payout.totalPaid)}.
+        </p>
+      )}
     </div>
   );
 }
