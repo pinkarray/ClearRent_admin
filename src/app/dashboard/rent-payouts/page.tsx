@@ -14,8 +14,12 @@ import { useAuth } from "@/lib/auth-context";
 
 type TabFilter = "landlord" | "agent" | "paid";
 
-/** Beneficiary's answer to "did it arrive?". Absent = not answered yet. */
-type ReceiptState = "confirmed" | "disputed" | "resolved";
+/**
+ * Beneficiary's answer to "did it arrive?". `awaiting` is stamped when the
+ * payout is marked paid; absent means the same on anything paid before the
+ * receipt flow shipped.
+ */
+type ReceiptState = "awaiting" | "confirmed" | "disputed" | "resolved";
 
 interface BankDetails {
   bankName?: string;

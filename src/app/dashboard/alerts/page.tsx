@@ -81,6 +81,13 @@ const TYPE_META: Record<
     icon: HandCoins,
     route: () => "/dashboard/rent-payouts",
   },
+  // Nobody ever answered "did it arrive?". Not a dispute — but after 10 days
+  // of silence the transfer is worth checking, because an unanswered payout
+  // and a failed one look identical from here.
+  payout_unconfirmed: {
+    icon: HandCoins,
+    route: () => "/dashboard/rent-payouts",
+  },
   issue_reported: { icon: AlertTriangle, route: () => "/dashboard/issues" },
   issue_fix_disputed: { icon: AlertTriangle, route: () => "/dashboard/issues" },
   issue_pending_stale: { icon: AlertTriangle, route: () => "/dashboard/issues" },

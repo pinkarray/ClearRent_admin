@@ -43,6 +43,9 @@ const LIFECYCLE_PENDING = new Set(["requested", "paid"]);
 // they're done. They keep a manual Dismiss (nothing else can ever close them)
 // but stay out of "Dismiss all", and the card says so.
 const PENDING_WORK = new Set([
+  // Nothing closes this automatically — the beneficiary answering later does
+  // not clear the alert — so an admin checks the transfer and dismisses it.
+  "payout_unconfirmed",
   "rental_interest",
   "agreement_ready",
   "agreement_disputed",
