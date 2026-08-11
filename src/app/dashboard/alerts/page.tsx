@@ -86,6 +86,15 @@ const TYPE_META: Record<
     icon: FileWarning,
     route: () => "/dashboard/rent-attention",
   },
+  // A tenant contradicting a landlord's "terms only" declaration. Same
+  // destination as agreement_disputed — the flag sets agreementStatus to
+  // 'disputed', so that is exactly where the tenancy surfaces — but it needs
+  // its own entry or the most serious alert the platform can raise renders
+  // with a generic bell and no way to click through to it.
+  agreement_rent_mismatch: {
+    icon: TrendingUp,
+    route: () => "/dashboard/rent-attention",
+  },
   rental_end_contested: { icon: DoorOpen, route: () => null },
 
   // Pipeline events. Previously these had no producer at all, so an admin
