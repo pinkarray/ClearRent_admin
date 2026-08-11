@@ -8,10 +8,14 @@ import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
 import { Banknote, Search, X, Loader2, CheckCircle2, Clock, Copy, Phone, User, Building2, AlertTriangle, Landmark, UserCheck, History, ExternalLink,} from "lucide-react";
 import { MarkPaidModal } from "@/components/MarkPaidModal";
+import { ResolvePayoutDisputeModal } from "@/components/ResolvePayoutDisputeModal";
 import { useAuth } from "@/lib/auth-context";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TabFilter = "landlord" | "agent" | "paid";
+
+/** Beneficiary's answer to "did it arrive?". Absent = not answered yet. */
+type ReceiptState = "confirmed" | "disputed" | "resolved";
 
 interface BankDetails {
   bankName?: string;
@@ -45,6 +49,19 @@ interface RentPayout {
   landlordPaidAt?: Date;
   agentPaidAt?: Date;
 
+  // Did the money actually land? "Paid" only ever meant we sent it. Undefined
+  // means the beneficiary hasn't answered yet.
+  landlordPayoutReceipt?: ReceiptState;
+  agentPayoutReceipt?: ReceiptState;
+  landlordPayoutDisputeReason?: string;
+  agentPayoutDisputeReason?: string;
+  landlordPayoutConfirmedAt?: Date;
+  agentPayoutConfirmedAt?: Date;
+  landlordPayoutDisputeResolutionNote?: string;
+  agentPayoutDisputeResolutionNote?: string;
+  landlordPayoutProofPath?: string;
+  agentPayoutProofPath?: string;
+
   createdAt: Date;
 
   // Loaded separately
@@ -74,6 +91,10 @@ export default function RentPayoutsPage() {
   const [payoutToMark, setPayoutToMark] = useState<{
     payout: RentPayout;
     branch: "landlord" | "agent";
+  } | null>(null);
+  const [disputeToResolve, setDisputeToResolve] = useState<{
+    payout: RentPayout;
+    role: "landlord" | "agent";
   } | null>(null);
 
   // ── Listener ───────────────────────────────────────────────────────────────
@@ -111,6 +132,20 @@ export default function RentPayoutsPage() {
           agentPayoutStatus: data.agentPayoutStatus || "not_applicable",
           landlordPaidAt: parseTimestamp(data.landlordPaidAt),
           agentPaidAt: parseTimestamp(data.agentPaidAt),
+          landlordPayoutReceipt: data.landlordPayoutReceipt,
+          agentPayoutReceipt: data.agentPayoutReceipt,
+          landlordPayoutDisputeReason: data.landlordPayoutDisputeReason,
+          agentPayoutDisputeReason: data.agentPayoutDisputeReason,
+          landlordPayoutConfirmedAt: parseTimestamp(
+            data.landlordPayoutConfirmedAt
+          ),
+          agentPayoutConfirmedAt: parseTimestamp(data.agentPayoutConfirmedAt),
+          landlordPayoutDisputeResolutionNote:
+            data.landlordPayoutDisputeResolutionNote,
+          agentPayoutDisputeResolutionNote:
+            data.agentPayoutDisputeResolutionNote,
+          landlordPayoutProofPath: data.landlordPayoutProofPath,
+          agentPayoutProofPath: data.agentPayoutProofPath,
           createdAt: parseTimestamp(data.createdAt) || new Date(),
           bankLoading: true,
         };
@@ -377,7 +412,33 @@ export default function RentPayoutsPage() {
           onClose={() => setSelectedPayout(null)}
           onMarkLandlordPaid={() => markLandlordPaid(selectedPayout)}
           onMarkAgentPaid={() => markAgentPaid(selectedPayout)}
+          onResolveDispute={(role) =>
+            setDisputeToResolve({ payout: selectedPayout, role })
+          }
           onCopy={copyToClipboard}
+        />
+      )}
+      {disputeToResolve && (
+        <ResolvePayoutDisputeModal
+          rentalId={disputeToResolve.payout.id}
+          role={disputeToResolve.role}
+          amount={
+            disputeToResolve.role === "landlord"
+              ? disputeToResolve.payout.landlordPayout
+              : disputeToResolve.payout.agentPayout
+          }
+          beneficiaryName={
+            disputeToResolve.role === "landlord"
+              ? disputeToResolve.payout.landlordName
+              : disputeToResolve.payout.agentName || "The agent"
+          }
+          disputeReason={
+            disputeToResolve.role === "landlord"
+              ? disputeToResolve.payout.landlordPayoutDisputeReason
+              : disputeToResolve.payout.agentPayoutDisputeReason
+          }
+          onSuccess={() => setDisputeToResolve(null)}
+          onClose={() => setDisputeToResolve(null)}
         />
       )}
             {payoutToMark && (
@@ -549,6 +610,7 @@ function RentPayoutDetailPanel({
   onClose,
   onMarkLandlordPaid,
   onMarkAgentPaid,
+  onResolveDispute,
   onCopy,
 }: {
   payout: RentPayout;
@@ -557,6 +619,7 @@ function RentPayoutDetailPanel({
   onClose: () => void;
   onMarkLandlordPaid: () => void;
   onMarkAgentPaid: () => void;
+  onResolveDispute: (role: "landlord" | "agent") => void;
   onCopy: (text: string, key: string) => void;
 }) {
   const whatsappHref = (phone: string | undefined, name: string, amount: number) =>
@@ -683,12 +746,15 @@ function RentPayoutDetailPanel({
               </button>
             )}
             {payout.landlordPayoutStatus === "paid" && payout.landlordPaidAt && (
-              <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-3">
-                <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-                <p className="text-xs text-[rgb(var(--text-secondary))]">
-                  Paid {payout.landlordPaidAt.toLocaleString("en-NG")}
-                </p>
-              </div>
+              <ReceiptBlock
+                paidAt={payout.landlordPaidAt}
+                state={payout.landlordPayoutReceipt}
+                disputeReason={payout.landlordPayoutDisputeReason}
+                resolutionNote={payout.landlordPayoutDisputeResolutionNote}
+                proofPath={payout.landlordPayoutProofPath}
+                accent="emerald"
+                onResolve={() => onResolveDispute("landlord")}
+              />
             )}
           </div>
 
@@ -726,12 +792,15 @@ function RentPayoutDetailPanel({
                 </button>
               )}
               {payout.agentPayoutStatus === "paid" && payout.agentPaidAt && (
-                <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 flex items-center gap-3">
-                  <CheckCircle2 size={16} className="text-blue-500 shrink-0" />
-                  <p className="text-xs text-[rgb(var(--text-secondary))]">
-                    Paid {payout.agentPaidAt.toLocaleString("en-NG")}
-                  </p>
-                </div>
+                <ReceiptBlock
+                  paidAt={payout.agentPaidAt}
+                  state={payout.agentPayoutReceipt}
+                  disputeReason={payout.agentPayoutDisputeReason}
+                  resolutionNote={payout.agentPayoutDisputeResolutionNote}
+                  proofPath={payout.agentPayoutProofPath}
+                  accent="blue"
+                  onResolve={() => onResolveDispute("agent")}
+                />
               )}
             </div>
           )}
@@ -755,6 +824,105 @@ function RentPayoutDetailPanel({
 }
 
 // ─── Shared Components ────────────────────────────────────────────────────────
+
+/**
+ * What happened AFTER we marked the payout sent. "Paid" is our side of the
+ * story; this is the beneficiary's. Awaiting means they haven't answered — not
+ * that anything is wrong — so it reads neutral, and only a live dispute is
+ * styled as a problem.
+ */
+function ReceiptBlock({
+  paidAt,
+  state,
+  disputeReason,
+  resolutionNote,
+  proofPath,
+  accent,
+  onResolve,
+}: {
+  paidAt: Date;
+  state?: ReceiptState;
+  disputeReason?: string;
+  resolutionNote?: string;
+  proofPath?: string;
+  accent: "emerald" | "blue";
+  onResolve: () => void;
+}) {
+  const sentLine = `Sent ${paidAt.toLocaleString("en-NG")}`;
+
+  if (state === "disputed") {
+    return (
+      <div className="mt-2 space-y-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={16} className="shrink-0 text-red-500" />
+          <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+            Reported not received
+          </p>
+        </div>
+        <p className="text-xs text-[rgb(var(--text-secondary))]">{sentLine}</p>
+        {disputeReason && <p className="text-xs">{disputeReason}</p>}
+        <button
+          onClick={onResolve}
+          className="mt-1 w-full rounded-xl bg-red-500 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-red-600"
+        >
+          Attach evidence & resolve
+        </button>
+      </div>
+    );
+  }
+
+  if (state === "resolved") {
+    return (
+      <div className="mt-2 space-y-2 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface-hover))] p-3">
+        <div className="flex items-center gap-2">
+          <History size={16} className="shrink-0 text-[rgb(var(--text-hint))]" />
+          <p className="text-xs font-semibold">Dispute resolved</p>
+        </div>
+        <p className="text-xs text-[rgb(var(--text-secondary))]">{sentLine}</p>
+        {resolutionNote && <p className="text-xs">{resolutionNote}</p>}
+        {proofPath && (
+          <a
+            href={`/api/verification-image?path=${encodeURIComponent(proofPath)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-[rgb(var(--brand))] hover:underline"
+          >
+            <ExternalLink size={12} /> View proof of transfer
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  const confirmed = state === "confirmed";
+  return (
+    <div
+      className={cn(
+        "mt-2 flex items-center gap-3 rounded-xl p-3 border",
+        accent === "emerald"
+          ? "bg-emerald-500/5 border-emerald-500/20"
+          : "bg-blue-500/5 border-blue-500/20"
+      )}
+    >
+      {confirmed ? (
+        <CheckCircle2
+          size={16}
+          className={cn(
+            "shrink-0",
+            accent === "emerald" ? "text-emerald-500" : "text-blue-500"
+          )}
+        />
+      ) : (
+        <Clock size={16} className="shrink-0 text-[rgb(var(--text-hint))]" />
+      )}
+      <p className="text-xs text-[rgb(var(--text-secondary))]">
+        {sentLine}
+        {" · "}
+        {confirmed ? "confirmed received" : "awaiting confirmation"}
+      </p>
+    </div>
+  );
+}
 
 function BankSection({
   bank,

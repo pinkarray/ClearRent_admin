@@ -25,6 +25,10 @@ export interface AdminAlert {
 export const RESOLVE_ON_PAGE: Record<string, string> = {
   inspection_dispute: "Inspection Reviews",
   rent_change_request: "Rent Reviews",
+  // resolvePayoutDispute closes this alert itself once evidence is attached,
+  // so it must not be dismissable from the feed — dismissing would hide money
+  // someone says they never received while the dispute is still open.
+  payout_disputed: "Rent Payouts",
 };
 
 // `inspection_lifecycle` is a single upserted doc per inspection that walks

@@ -41,6 +41,7 @@ import {
   ShieldCheck,
   HeartHandshake,
   FileSignature,
+  HandCoins,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -73,6 +74,13 @@ const TYPE_META: Record<
     route: () => "/dashboard/rent-reviews",
   },
   rent_payment: { icon: Banknote, route: () => "/dashboard/rent-payouts" },
+  // A landlord or agent reporting that a payout we marked "sent" never landed.
+  // Worked from Rent Payouts, which is where the evidence is attached and the
+  // dispute resolved.
+  payout_disputed: {
+    icon: HandCoins,
+    route: () => "/dashboard/rent-payouts",
+  },
   issue_reported: { icon: AlertTriangle, route: () => "/dashboard/issues" },
   issue_fix_disputed: { icon: AlertTriangle, route: () => "/dashboard/issues" },
   issue_pending_stale: { icon: AlertTriangle, route: () => "/dashboard/issues" },
