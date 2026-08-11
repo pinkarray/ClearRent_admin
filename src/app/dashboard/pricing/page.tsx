@@ -27,6 +27,7 @@ const FALLBACK = {
   listing: 10000,
   inspectionTotal: 10000,
   dealFee: 5000,
+  minRent: 10000,
 };
 
 type FieldKey = keyof typeof FALLBACK;
@@ -84,6 +85,14 @@ const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
     key: "dealFee",
     label: "Deal completion fee",
     hint: "Per party on a completed rental — also sets the tenant's rent total",
+  },
+  {
+    key: "minRent",
+    label: "Minimum rent",
+    hint:
+      "Lowest rent a listing may be published at. Below the deal fee the " +
+      "landlord nets nothing, so the deal can never pay out. Enforced in " +
+      "firestore.rules — lower it to test with small charges.",
   },
 ];
 
@@ -143,6 +152,7 @@ export default function PricingPage() {
               d.inspection?.total ?? FALLBACK.inspectionTotal
             ),
             dealFee: String(d.dealFee ?? FALLBACK.dealFee),
+            minRent: String(d.minRent ?? FALLBACK.minRent),
           });
           setUpdatedAt(parseTimestamp(d.updatedAt));
           setUpdatedBy(d.updatedBy || "");
@@ -189,6 +199,7 @@ export default function PricingPage() {
           listing: Number(values.listing),
           inspection: { total: Number(values.inspectionTotal) },
           dealFee: Number(values.dealFee),
+          minRent: Number(values.minRent),
           updatedAt: serverTimestamp(),
           updatedBy: "admin-dashboard",
         },
