@@ -18,9 +18,12 @@ import {
 // Mirrors DEFAULT_PRICING in functions/src/pricing.ts and PlatformPricing
 // .fallback in the app. Shown until the document loads.
 const FALLBACK = {
-  verificationTenant: 3000,
-  verificationLandlord: 12000,
-  verificationAgent: 7000,
+  verificationTenantInitial: 5000,
+  verificationTenantRenewal: 3000,
+  verificationLandlordInitial: 15000,
+  verificationLandlordRenewal: 12000,
+  verificationAgentInitial: 10000,
+  verificationAgentRenewal: 7000,
   listing: 10000,
   inspectionTotal: 10000,
   dealFee: 5000,
@@ -28,22 +31,45 @@ const FALLBACK = {
 
 type FieldKey = keyof typeof FALLBACK;
 
+// Verification is priced in pairs, so it renders as its own two-column block
+// rather than as six unrelated rows.
+const VERIFICATION_ROLES: {
+  label: string;
+  initial: FieldKey;
+  renewal: FieldKey;
+}[] = [
+  {
+    label: "Tenant",
+    initial: "verificationTenantInitial",
+    renewal: "verificationTenantRenewal",
+  },
+  {
+    label: "Landlord",
+    initial: "verificationLandlordInitial",
+    renewal: "verificationLandlordRenewal",
+  },
+  {
+    label: "Agent",
+    initial: "verificationAgentInitial",
+    renewal: "verificationAgentRenewal",
+  },
+];
+
+/** Accepts a bare number (the pre-split shape) or an {initial, renewal} pair. */
+const roleFee = (
+  raw: unknown,
+  which: "initial" | "renewal",
+  fallback: number
+): string => {
+  if (typeof raw === "number") return String(raw);
+  if (raw && typeof raw === "object") {
+    const v = (raw as Record<string, unknown>)[which];
+    if (typeof v === "number") return String(v);
+  }
+  return String(fallback);
+};
+
 const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
-  {
-    key: "verificationTenant",
-    label: "Tenant verification",
-    hint: "One-time, and the annual renewal amount",
-  },
-  {
-    key: "verificationLandlord",
-    label: "Landlord verification",
-    hint: "One-time, and the annual renewal amount",
-  },
-  {
-    key: "verificationAgent",
-    label: "Agent verification",
-    hint: "One-time, and the annual renewal amount",
-  },
   {
     key: "listing",
     label: "Property listing fee",
@@ -82,14 +108,35 @@ export default function PricingPage() {
         const d = snap.data();
         if (d) {
           setValues({
-            verificationTenant: String(
-              d.verification?.tenant ?? FALLBACK.verificationTenant
+            verificationTenantInitial: roleFee(
+              d.verification?.tenant,
+              "initial",
+              FALLBACK.verificationTenantInitial
             ),
-            verificationLandlord: String(
-              d.verification?.landlord ?? FALLBACK.verificationLandlord
+            verificationTenantRenewal: roleFee(
+              d.verification?.tenant,
+              "renewal",
+              FALLBACK.verificationTenantRenewal
             ),
-            verificationAgent: String(
-              d.verification?.agent ?? FALLBACK.verificationAgent
+            verificationLandlordInitial: roleFee(
+              d.verification?.landlord,
+              "initial",
+              FALLBACK.verificationLandlordInitial
+            ),
+            verificationLandlordRenewal: roleFee(
+              d.verification?.landlord,
+              "renewal",
+              FALLBACK.verificationLandlordRenewal
+            ),
+            verificationAgentInitial: roleFee(
+              d.verification?.agent,
+              "initial",
+              FALLBACK.verificationAgentInitial
+            ),
+            verificationAgentRenewal: roleFee(
+              d.verification?.agent,
+              "renewal",
+              FALLBACK.verificationAgentRenewal
             ),
             listing: String(d.listing ?? FALLBACK.listing),
             inspectionTotal: String(
@@ -126,9 +173,18 @@ export default function PricingPage() {
         doc(db, "config", "pricing"),
         {
           verification: {
-            tenant: Number(values.verificationTenant),
-            landlord: Number(values.verificationLandlord),
-            agent: Number(values.verificationAgent),
+            tenant: {
+              initial: Number(values.verificationTenantInitial),
+              renewal: Number(values.verificationTenantRenewal),
+            },
+            landlord: {
+              initial: Number(values.verificationLandlordInitial),
+              renewal: Number(values.verificationLandlordRenewal),
+            },
+            agent: {
+              initial: Number(values.verificationAgentInitial),
+              renewal: Number(values.verificationAgentRenewal),
+            },
           },
           listing: Number(values.listing),
           inspection: { total: Number(values.inspectionTotal) },
@@ -182,6 +238,63 @@ export default function PricingPage() {
             previous price until they reopen it.
           </p>
         </div>
+      </div>
+
+      {/* Verification — priced per role, first time vs every year after */}
+      <div className="card space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-[rgb(var(--text-primary))]">
+            Verification
+          </p>
+          <p className="text-xs text-[rgb(var(--text-hint))]">
+            Renewal re-collects the role proof only — the NIN is permanent and
+            carried forward — so it is priced lower. The server decides which
+            applies from whether the user has ever been verified; it is not
+            something the app can claim.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex-1 min-w-0" />
+          <span className="w-32 text-right text-xs font-medium text-[rgb(var(--text-hint))] shrink-0">
+            First time
+          </span>
+          <span className="w-32 text-right text-xs font-medium text-[rgb(var(--text-hint))] shrink-0">
+            Renewal / year
+          </span>
+        </div>
+
+        {VERIFICATION_ROLES.map((r) => (
+          <div key={r.label} className="flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[rgb(var(--text-primary))]">
+                {r.label}
+              </p>
+            </div>
+            {([r.initial, r.renewal] as FieldKey[]).map((key) => (
+              <div
+                key={key}
+                className="flex items-center gap-2 shrink-0 w-32"
+              >
+                <span className="text-[rgb(var(--text-hint))]">₦</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={500}
+                  disabled={!canWrite}
+                  value={values[key]}
+                  onChange={(e) =>
+                    setValues((v) => ({ ...v, [key]: e.target.value }))
+                  }
+                  className={cn(
+                    "input w-full text-right font-mono",
+                    Number(values[key]) < 0 && "border-red-500"
+                  )}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
 
       {/* Editable fees */}
