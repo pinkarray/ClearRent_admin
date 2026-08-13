@@ -39,7 +39,31 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TypeFilter = "all" | "flat" | "duplex" | "selfContain" | "bungalow" | "room" | "shop" | "office";
+// Mirrors PropertyModel.typeLabels. 'shop'/'office' aren't pickable by a
+// landlord yet but still filterable, so an old listing can be found.
+type TypeFilter =
+  | "all"
+  | "flat"
+  | "duplex"
+  | "bungalow"
+  | "selfContain"
+  | "miniFlat"
+  | "room"
+  | "roomAndParlour"
+  | "shop"
+  | "office";
+
+const TYPE_LABELS: Record<string, string> = {
+  flat: "Flat",
+  duplex: "Duplex",
+  bungalow: "Bungalow",
+  selfContain: "Self Contain",
+  miniFlat: "Mini Flat",
+  room: "Room",
+  roomAndParlour: "Room & Parlour",
+  shop: "Shop",
+  office: "Office",
+};
 type DocStatusFilter = "all" | "pending" | "verified" | "rejected" | "none";
 type RegionFilter = "all" | "lagos" | "outside";
 
@@ -74,6 +98,12 @@ interface Property {
   // shape in one compound are the same row twice at review time.
   unitLabel?: string;
   floor?: string;
+  // Single-space types only (room / room & parlour / self contain): what the
+  // tenant gets exclusively. These, not the bedroom count, are what separate a
+  // shared room from a self-contained flat.
+  bathroomAccess?: string;
+  toiletAccess?: string;
+  kitchenAccess?: string;
   // Stats
   viewCount: number;
   inquiryCount: number;
@@ -184,6 +214,20 @@ function unitDescriptor(p: Property) {
 //
 // The landlord cannot type this value: it is derived from their map pin.
 // Case-insensitive because it comes from a geocoder that returns both cases.
+// Types that are ONE space. Their spec is which facilities the tenant gets
+// exclusively — a bedroom count would be a tautology, and showing one made a
+// shared room read identically to a self-contained flat.
+function isSingleSpace(type: string) {
+  return type === "room" || type === "roomAndParlour" || type === "selfContain";
+}
+
+function accessLabel(access?: string) {
+  if (access === "private") return "Private";
+  if (access === "shared") return "Shared";
+  if (access === "none") return "None";
+  return "Not stated";
+}
+
 function isOutsideLagos(p: Property) {
   const state = (p.state || "").trim();
   return state.length > 0 && state.toLowerCase() !== "lagos";
@@ -236,6 +280,9 @@ export default function PropertiesPage() {
           buildingId: data.buildingId,
           unitLabel: data.unitLabel,
           floor: data.floor,
+          bathroomAccess: data.bathroomAccess,
+          toiletAccess: data.toiletAccess,
+          kitchenAccess: data.kitchenAccess,
           viewCount: data.viewCount || 0,
           inquiryCount: data.inquiryCount || 0,
           inspectionHandler: data.inspectionHandler || "self",
@@ -393,7 +440,7 @@ export default function PropertiesPage() {
 
       {/* Type filter chips */}
       <div className="flex flex-wrap gap-2">
-        {(["all", "flat", "duplex", "selfContain", "bungalow", "room", "shop", "office"] as TypeFilter[]).map((t) => {
+        {(["all", ...Object.keys(TYPE_LABELS)] as TypeFilter[]).map((t) => {
           const count = t === "all" ? totalCount : properties.filter((p) => p.propertyType === t).length;
           return (
             <button
@@ -406,7 +453,7 @@ export default function PropertiesPage() {
                   : "bg-[rgb(var(--surface))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border))] hover:border-[rgb(var(--text-hint))]"
               )}
             >
-              {t === "all" ? "All" : t === "selfContain" ? "Self Contain" : capitalize(t)}
+              {t === "all" ? "All" : TYPE_LABELS[t] ?? capitalize(t)}
               <span className="ml-1.5 text-xs opacity-60">{count}</span>
             </button>
           );
@@ -770,7 +817,7 @@ function PropertyDetailPanel({
             </h3>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className="badge bg-[rgb(var(--background))] text-[rgb(var(--text-secondary))] border border-[rgb(var(--border))]">
-                {property.propertyType === "selfContain" ? "Self Contain" : capitalize(property.propertyType)}
+                {TYPE_LABELS[property.propertyType] ?? capitalize(property.propertyType)}
               </span>
               <AvailabilityBadge available={property.isAvailable} docStatus={docInfo.status} />
               <DocStatusBadge status={docInfo.status} />
@@ -832,8 +879,18 @@ function PropertyDetailPanel({
             {grouped && unitDescriptor(property) && (
               <DetailRow icon={Building2} label="Unit" value={unitDescriptor(property)} />
             )}
-            <DetailRow icon={BedDouble} label="Bedrooms" value={`${property.bedrooms}`} />
-            <DetailRow icon={Bath} label="Bathrooms" value={`${property.bathrooms}`} />
+            {isSingleSpace(property.propertyType) ? (
+              <>
+                <DetailRow icon={Bath} label="Bathroom" value={accessLabel(property.bathroomAccess)} />
+                <DetailRow icon={Bath} label="Toilet" value={accessLabel(property.toiletAccess)} />
+                <DetailRow icon={Home} label="Kitchen" value={accessLabel(property.kitchenAccess)} />
+              </>
+            ) : (
+              <>
+                <DetailRow icon={BedDouble} label="Bedrooms" value={`${property.bedrooms}`} />
+                <DetailRow icon={Bath} label="Bathrooms" value={`${property.bathrooms}`} />
+              </>
+            )}
             <DetailRow icon={Users} label="Occupancy" value={`${property.currentTenantsCount || 0} / ${property.maxTenants} tenants`} />
             <DetailRow icon={Home} label="Rent" value={`${formatNaira(property.rent)} / ${property.rentFrequency === "yearly" ? "year" : "month"}`} />
             <DetailRow icon={User} label="Inspection" value={property.inspectionHandler === "agent" ? `Agent: ${property.assignedAgentName || "Assigned"}` : "Self-handled"} />
