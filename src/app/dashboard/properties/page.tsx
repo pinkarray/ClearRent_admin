@@ -41,6 +41,7 @@ import {
 
 type TypeFilter = "all" | "flat" | "duplex" | "selfContain" | "bungalow" | "room" | "shop" | "office";
 type DocStatusFilter = "all" | "pending" | "verified" | "rejected" | "none";
+type RegionFilter = "all" | "lagos" | "outside";
 
 interface Property {
   id: string;
@@ -69,6 +70,10 @@ interface Property {
   // Building grouping — when set, the ownership doc lives on the building and
   // is shared across all its units.
   buildingId?: string;
+  // Which unit this is inside that building. Without it two units of the same
+  // shape in one compound are the same row twice at review time.
+  unitLabel?: string;
+  floor?: string;
   // Stats
   viewCount: number;
   inquiryCount: number;
@@ -85,6 +90,9 @@ interface Building {
   landlordId: string;
   name: string;
   address: string;
+  // What the whole structure is: duplex, compound, storey building… The unit's
+  // own propertyType says only what is being let.
+  structure?: string;
   ownershipDocUrl?: string;
   ownershipDocType?: string;
   ownershipDocStatus: string; // none | pending | verified | rejected
@@ -132,6 +140,55 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// Labels for BuildingModel.structure — what the whole thing is, as opposed to
+// the unit's propertyType, which is only what the tenant gets.
+const STRUCTURE_LABELS: Record<string, string> = {
+  duplex: "Duplex",
+  bungalow: "Bungalow",
+  storeyBuilding: "Storey building",
+  blockOfFlats: "Block of flats",
+  compound: "Compound",
+  faceMeIFaceYou: "Face me I face you",
+  detachedHouse: "Detached house",
+  other: "Other",
+};
+
+const FLOOR_LABELS: Record<string, string> = {
+  ground: "Ground floor",
+  "1": "1st floor",
+  "2": "2nd floor",
+  "3": "3rd floor",
+  "4": "4th floor",
+};
+
+// "Ade's Compound (Duplex)" — buildings created before `structure` existed have
+// none, so the parenthetical is dropped rather than shown empty.
+function buildingContext(b: Building) {
+  const s = b.structure ? STRUCTURE_LABELS[b.structure] : undefined;
+  return s ? `${b.name} (${s})` : b.name;
+}
+
+// "Room 2 · 1st floor" — which unit inside the building this listing is.
+function unitDescriptor(p: Property) {
+  const parts: string[] = [];
+  if (p.unitLabel) parts.push(p.unitLabel);
+  if (p.floor) parts.push(FLOOR_LABELS[p.floor] || `Floor ${p.floor}`);
+  return parts.join(" · ");
+}
+
+// ClearRent operates in Lagos today, but nothing blocks a listing elsewhere:
+// admin review IS the gate. A listing born isVerified:false / isAvailable:false
+// cannot be browsed or booked until someone here approves it — so this flag has
+// to be visible at the moment of review, or an out-of-state listing gets
+// rubber-stamped through with everything else.
+//
+// The landlord cannot type this value: it is derived from their map pin.
+// Case-insensitive because it comes from a geocoder that returns both cases.
+function isOutsideLagos(p: Property) {
+  const state = (p.state || "").trim();
+  return state.length > 0 && state.toLowerCase() !== "lagos";
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PropertiesPage() {
@@ -141,6 +198,7 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [docStatusFilter, setDocStatusFilter] = useState<DocStatusFilter>("all");
+  const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [processing, setProcessing] = useState<Set<string>>(new Set());
@@ -176,6 +234,8 @@ export default function PropertiesPage() {
           ownershipDocStatus: data.ownershipDocStatus || "none",
           ownershipDocRejectionReason: data.ownershipDocRejectionReason,
           buildingId: data.buildingId,
+          unitLabel: data.unitLabel,
+          floor: data.floor,
           viewCount: data.viewCount || 0,
           inquiryCount: data.inquiryCount || 0,
           inspectionHandler: data.inspectionHandler || "self",
@@ -200,6 +260,7 @@ export default function PropertiesPage() {
             landlordId: data.landlordId || "",
             name: data.name || "Building",
             address: data.address || "",
+            structure: data.structure,
             ownershipDocUrl: data.ownershipDocUrl,
             ownershipDocType: data.ownershipDocType,
             ownershipDocStatus: data.ownershipDocStatus || "none",
@@ -223,6 +284,7 @@ export default function PropertiesPage() {
   ).length;
   const totalCount = properties.length;
   const availableCount = properties.filter((p) => p.isAvailable).length;
+  const outsideLagosCount = properties.filter(isOutsideLagos).length;
 
   // ── Filtering ──────────────────────────────────────────────────────────────
 
@@ -234,6 +296,8 @@ export default function PropertiesPage() {
         resolveDoc(p, buildings).status !== docStatusFilter
       )
         return false;
+      if (regionFilter === "lagos" && isOutsideLagos(p)) return false;
+      if (regionFilter === "outside" && !isOutsideLagos(p)) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         // Exact street address isn't on the list doc (gated subdoc) — match on
@@ -247,7 +311,7 @@ export default function PropertiesPage() {
       }
       return true;
     });
-  }, [properties, buildings, typeFilter, docStatusFilter, searchQuery]);
+  }, [properties, buildings, typeFilter, docStatusFilter, regionFilter, searchQuery]);
 
   // ── Doc actions ──────────────────────────────────────────────────────────
   // For a grouped unit the C of O lives on the building: verifying/rejecting
@@ -377,6 +441,17 @@ export default function PropertiesPage() {
           <option value="rejected">Doc Rejected</option>
           <option value="none">No Doc Uploaded</option>
         </select>
+        {/* Where we operate. Nothing blocks an out-of-state listing at write
+            time — this queue is the gate, so it has to be findable. */}
+        <select
+          value={regionFilter}
+          onChange={(e) => setRegionFilter(e.target.value as RegionFilter)}
+          className="input w-auto min-w-[180px] cursor-pointer"
+        >
+          <option value="all">All States</option>
+          <option value="lagos">Lagos</option>
+          <option value="outside">Outside Lagos ({outsideLagosCount})</option>
+        </select>
       </div>
 
       {/* Grid / List */}
@@ -470,6 +545,13 @@ function PropertyCard({
           <AvailabilityBadge available={property.isAvailable} docStatus={docInfo.status} />
         </div>
         <div className="absolute top-2 right-2 flex gap-1.5">
+          {/* We operate in Lagos. Nothing stops this being listed, so the
+              reviewer has to see it before approving. */}
+          {isOutsideLagos(property) && (
+            <span className="badge-warning gap-1 text-[10px]">
+              <MapPin size={10} /> {property.state}
+            </span>
+          )}
           {docInfo.building && (
             <span className="badge bg-black/50 text-white border-0 gap-1 text-[10px] backdrop-blur-sm">
               <Building2 size={10} /> In building
@@ -485,6 +567,18 @@ function PropertyCard({
           <p className="text-sm font-semibold text-[rgb(var(--text-primary))] truncate">
             {property.title}
           </p>
+          {/* Which unit, in which building — two units of the same shape in one
+              compound are otherwise identical cards. */}
+          {docInfo.building && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <Building2 size={11} className="text-[rgb(var(--text-hint))] shrink-0" />
+              <p className="text-xs text-[rgb(var(--text-hint))] truncate">
+                {[unitDescriptor(property), buildingContext(docInfo.building)]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+          )}
           <div className="flex items-center gap-1 mt-0.5">
             <MapPin size={11} className="text-[rgb(var(--text-hint))] shrink-0" />
             <p className="text-xs text-[rgb(var(--text-hint))] truncate">
@@ -680,6 +774,11 @@ function PropertyDetailPanel({
               </span>
               <AvailabilityBadge available={property.isAvailable} docStatus={docInfo.status} />
               <DocStatusBadge status={docInfo.status} />
+              {isOutsideLagos(property) && (
+                <span className="badge-warning gap-1 text-[10px]">
+                  <MapPin size={10} /> Outside Lagos
+                </span>
+              )}
               {property.readyForInspections ? (
                 <span className="badge-success gap-1 text-[10px]">
                   <CheckCircle2 size={10} /> Vetted
@@ -691,7 +790,7 @@ function PropertyDetailPanel({
               )}
               {grouped && (
                 <span className="badge bg-[rgb(var(--brand))]/10 text-[rgb(var(--brand))] border border-[rgb(var(--brand))]/20 gap-1 text-[10px]">
-                  <Building2 size={10} /> {docInfo.building!.name}
+                  <Building2 size={10} /> {buildingContext(docInfo.building!)}
                 </span>
               )}
             </div>
@@ -710,11 +809,29 @@ function PropertyDetailPanel({
               }
             />
             <DetailRow icon={MapPin} label="City" value={`${property.city}, ${property.state}`} />
+            {/* Says what the reviewer is actually deciding. The state is
+                derived from the landlord's map pin, not typed, so it is not a
+                typo — it is a real address outside where we operate. */}
+            {isOutsideLagos(property) && (
+              <div className="rounded-lg border border-[rgb(var(--warning))]/30 bg-[rgb(var(--warning))]/10 p-3 text-xs text-[rgb(var(--text-secondary))]">
+                <span className="font-medium text-[rgb(var(--text-primary))]">
+                  This property is in {property.state}, not Lagos.
+                </span>{" "}
+                We operate in Lagos today, so approving it publishes a listing
+                we may not be able to service: agents register Lagos areas, and
+                the tenant area filter is a Lagos list. The inspection fee is
+                flat, so that part still works. Approve only if we intend to
+                cover {property.state}.
+              </div>
+            )}
           </div>
 
           {/* Specs */}
           <div className="space-y-2">
             <h4 className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">Details</h4>
+            {grouped && unitDescriptor(property) && (
+              <DetailRow icon={Building2} label="Unit" value={unitDescriptor(property)} />
+            )}
             <DetailRow icon={BedDouble} label="Bedrooms" value={`${property.bedrooms}`} />
             <DetailRow icon={Bath} label="Bathrooms" value={`${property.bathrooms}`} />
             <DetailRow icon={Users} label="Occupancy" value={`${property.currentTenantsCount || 0} / ${property.maxTenants} tenants`} />
