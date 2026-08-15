@@ -45,22 +45,27 @@ type TypeFilter =
   | "all"
   | "flat"
   | "duplex"
+  | "semiDetachedDuplex"
   | "bungalow"
   | "selfContain"
-  | "miniFlat"
   | "room"
   | "roomAndParlour"
+  | "miniFlat"
   | "shop"
   | "office";
 
+// 'miniFlat' is the same dwelling as 'roomAndParlour' and is no longer
+// pickable; 'shop'/'office' aren't pickable yet. All stay filterable so an
+// existing listing can still be found.
 const TYPE_LABELS: Record<string, string> = {
   flat: "Flat",
   duplex: "Duplex",
+  semiDetachedDuplex: "Semi-Detached Duplex",
   bungalow: "Bungalow",
   selfContain: "Self Contain",
-  miniFlat: "Mini Flat",
   room: "Room",
   roomAndParlour: "Room & Parlour",
+  miniFlat: "Mini Flat",
   shop: "Shop",
   office: "Office",
 };
@@ -218,7 +223,12 @@ function unitDescriptor(p: Property) {
 // exclusively — a bedroom count would be a tautology, and showing one made a
 // shared room read identically to a self-contained flat.
 function isSingleSpace(type: string) {
-  return type === "room" || type === "roomAndParlour" || type === "selfContain";
+  return (
+    type === "room" ||
+    type === "roomAndParlour" ||
+    type === "selfContain" ||
+    type === "miniFlat"
+  );
 }
 
 function accessLabel(access?: string) {
