@@ -822,7 +822,9 @@ function PropertyDetailPanel({
       const key = `${p.unitBuildingStructure}|${p.unitBuildingLabel ?? ""}`;
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    return [...counts.entries()].map(([key, units]) => {
+    // Array.from, not a spread: the tsconfig target predates ES2015 iterators,
+    // so spreading a Map iterator fails the production type check.
+    return Array.from(counts.entries()).map(([key, units]) => {
       const [structure, label] = key.split("|");
       return {
         name: `${STRUCTURE_LABELS[structure] ?? structure}${label ? ` ${label}` : ""}`,
