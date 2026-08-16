@@ -103,12 +103,19 @@ interface Property {
   // shape in one compound are the same row twice at review time.
   unitLabel?: string;
   floor?: string;
-  // Single-space types only (room / room & parlour / self contain): what the
-  // tenant gets exclusively. These, not the bedroom count, are what separate a
-  // shared room from a self-contained flat.
+  // Grouped units only: what the tenant gets exclusively. Sharing is a fact
+  // about the arrangement, not the type — a self contain in a compound can
+  // still share a toilet — so these are set for any unit, and absent when the
+  // whole property is let.
   bathroomAccess?: string;
   toiletAccess?: string;
   kitchenAccess?: string;
+  livingRoomAccess?: string;
+  // The unit's OWN building, when the site is a compound: one C of O can cover
+  // a duplex and a bungalow side by side, so the building's `structure` says
+  // only "compound" and loses which one this unit is in.
+  unitBuildingStructure?: string;
+  unitBuildingLabel?: string;
   // Stats
   viewCount: number;
   inquiryCount: number;
@@ -293,6 +300,9 @@ export default function PropertiesPage() {
           bathroomAccess: data.bathroomAccess,
           toiletAccess: data.toiletAccess,
           kitchenAccess: data.kitchenAccess,
+          livingRoomAccess: data.livingRoomAccess,
+          unitBuildingStructure: data.unitBuildingStructure,
+          unitBuildingLabel: data.unitBuildingLabel,
           viewCount: data.viewCount || 0,
           inquiryCount: data.inquiryCount || 0,
           inspectionHandler: data.inspectionHandler || "self",
@@ -544,6 +554,7 @@ export default function PropertiesPage() {
       {selectedProperty && (
         <PropertyDetailPanel
           property={selectedProperty}
+          siblings={properties}
           docInfo={resolveDoc(selectedProperty, buildings)}
           canWrite={canWrite}
           processing={processing.has(selectedProperty.id)}
@@ -720,6 +731,7 @@ function PropertyCard({
 
 function PropertyDetailPanel({
   property,
+  siblings,
   docInfo,
   canWrite,
   processing,
@@ -729,6 +741,9 @@ function PropertyDetailPanel({
   onPublish,
 }: {
   property: Property;
+  /** Every property in the list, so a compound's buildings can be DERIVED from
+   *  the units actually listed rather than stated up front and going stale. */
+  siblings: Property[];
   docInfo: DocInfo;
   canWrite: boolean;
   processing: boolean;
@@ -793,6 +808,28 @@ function PropertyDetailPanel({
 
   const isPendingDoc = docInfo.status === "pending";
   const grouped = !!docInfo.building;
+
+  // A compound is LAND: one C of O can cover a duplex and a bungalow side by
+  // side. The landlord is never asked how many buildings are on it — the
+  // number is DERIVED from the units, so it cannot disagree with what was
+  // actually listed. Empty for any other structure, which IS one building.
+  const compoundBuildings = useMemo(() => {
+    if (!grouped || docInfo.building?.structure !== "compound") return [];
+    const counts = new Map<string, number>();
+    for (const p of siblings) {
+      if (p.buildingId !== property.buildingId) continue;
+      if (!p.unitBuildingStructure) continue;
+      const key = `${p.unitBuildingStructure}|${p.unitBuildingLabel ?? ""}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()].map(([key, units]) => {
+      const [structure, label] = key.split("|");
+      return {
+        name: `${STRUCTURE_LABELS[structure] ?? structure}${label ? ` ${label}` : ""}`,
+        units,
+      };
+    });
+  }, [grouped, docInfo.building, siblings, property.buildingId]);
   // Grouped unit whose building C of O is already verified but which hasn't
   // been published yet — ownership is settled, only per-unit approval remains.
   const needsPublish =
@@ -889,17 +926,44 @@ function PropertyDetailPanel({
             {grouped && unitDescriptor(property) && (
               <DetailRow icon={Building2} label="Unit" value={unitDescriptor(property)} />
             )}
-            {isSingleSpace(property.propertyType) ? (
-              <>
-                <DetailRow icon={Bath} label="Bathroom" value={accessLabel(property.bathroomAccess)} />
-                <DetailRow icon={Bath} label="Toilet" value={accessLabel(property.toiletAccess)} />
-                <DetailRow icon={Home} label="Kitchen" value={accessLabel(property.kitchenAccess)} />
-              </>
-            ) : (
+            {/* Counts and sharing are independent. Counts say what is present
+                and are real for anything but a single space; sharing says who
+                else uses it and is real for any grouped unit, whatever its
+                type — a self contain in a compound can still share a toilet. */}
+            {!(grouped && isSingleSpace(property.propertyType)) && (
               <>
                 <DetailRow icon={BedDouble} label="Bedrooms" value={`${property.bedrooms}`} />
                 <DetailRow icon={Bath} label="Bathrooms" value={`${property.bathrooms}`} />
               </>
+            )}
+            {grouped && (
+              <>
+                <DetailRow icon={Bath} label="Bathroom" value={accessLabel(property.bathroomAccess)} />
+                <DetailRow icon={Bath} label="Toilet" value={accessLabel(property.toiletAccess)} />
+                <DetailRow icon={Home} label="Kitchen" value={accessLabel(property.kitchenAccess)} />
+                <DetailRow icon={Home} label="Living room" value={accessLabel(property.livingRoomAccess)} />
+              </>
+            )}
+            {compoundBuildings.length > 0 && (
+              <DetailRow
+                icon={Building2}
+                label="On this land"
+                value={compoundBuildings
+                  .map((b) => `${b.name} (${b.units})`)
+                  .join(", ")}
+              />
+            )}
+            {grouped && property.unitBuildingStructure && (
+              <DetailRow
+                icon={Building2}
+                label="Building"
+                value={`${
+                  STRUCTURE_LABELS[property.unitBuildingStructure] ??
+                  property.unitBuildingStructure
+                }${
+                  property.unitBuildingLabel ? ` ${property.unitBuildingLabel}` : ""
+                }`}
+              />
             )}
             <DetailRow icon={Users} label="Occupancy" value={`${property.currentTenantsCount || 0} / ${property.maxTenants} tenants`} />
             <DetailRow icon={Home} label="Rent" value={`${formatNaira(property.rent)} / ${property.rentFrequency === "yearly" ? "year" : "month"}`} />
