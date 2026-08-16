@@ -111,6 +111,11 @@ const TYPE_META: Record<
     route: () => "/dashboard/rent-attention",
   },
   rental_end_contested: { icon: DoorOpen, route: () => null },
+  // The tenant says the caution deposit never reached them. Distinct from
+  // contesting the tenancy END: this one is about money, and the unit stays
+  // off the market until it resolves — the silence sweep will not close a
+  // contested handover, so nothing here times out on its own.
+  handover_settlement_contested: { icon: DoorOpen, route: () => null },
 
   // Pipeline events. Previously these had no producer at all, so an admin
   // learned about a waiting verification only by opening the users queue.
