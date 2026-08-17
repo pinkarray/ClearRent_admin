@@ -12,7 +12,8 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { cn, timeAgo } from "@/lib/utils";
@@ -53,6 +54,13 @@ function toDate(v: unknown): Date | null {
 
 // Icon + landing route per alert type. A null route means there's no dedicated
 // page to act on it — the admin just reviews + resolves it here.
+// Alerts about a stalled move-out, where the useful action is chasing a party
+// rather than acknowledging the alert.
+const HANDOVER_ALERTS = new Set([
+  "rental_end_contested",
+  "handover_settlement_contested",
+]);
+
 const TYPE_META: Record<
   string,
   { icon: typeof Bell; route: (a: AdminAlert) => string | null }
@@ -195,6 +203,32 @@ export default function AlertsPage() {
   // Only routine info can be cleared in bulk — see isRoutineInfo. Anything with
   // an open case is left for a human, however quiet its severity.
   const routine = useMemo(() => items.filter(isRoutineInfo), [items]);
+
+  // A stalled handover is the one alert where dismissing achieves nothing: the
+  // property stays off the market and the two parties are still disagreeing.
+  // This is the lever — an on-demand push to whichever side can unblock it.
+  async function nudgeHandover(item: AdminAlert, target: "landlord" | "tenant") {
+    if (!canWrite || !item.targetId) return;
+    const note = window.prompt(
+      `Optional note to add to the ${target}'s reminder`,
+      ""
+    );
+    if (note === null) return;
+    setBusyId(item.id);
+    try {
+      const fn = httpsCallable(functions, "nudgeHandoverParty");
+      await fn({ rentalId: item.targetId, target, note });
+      window.alert(`Reminder sent to the ${target}.`);
+    } catch (err) {
+      // failed-precondition carries the real reason (already closed, or that
+      // party is not the one holding it up), so show it rather than a generic.
+      const message =
+        err instanceof Error ? err.message : "Could not send the reminder.";
+      window.alert(message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   // Dismiss = acknowledge an alert. Offered for everything except the types a
   // Cloud Function closes for us (see RESOLVE_ON_PAGE).
@@ -378,6 +412,24 @@ export default function AlertsPage() {
                             {openWork ? "Review" : "View"}
                             <ArrowRight size={14} />
                           </button>
+                        )}
+                        {canWrite && HANDOVER_ALERTS.has(item.type) && (
+                          <>
+                            <button
+                              disabled={busy}
+                              onClick={() => void nudgeHandover(item, "landlord")}
+                              className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
+                            >
+                              Nudge landlord
+                            </button>
+                            <button
+                              disabled={busy}
+                              onClick={() => void nudgeHandover(item, "tenant")}
+                              className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
+                            >
+                              Nudge tenant
+                            </button>
+                          </>
                         )}
                         {canWrite && (
                           <button
