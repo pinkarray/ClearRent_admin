@@ -122,6 +122,8 @@ interface Property {
   // Inspection
   inspectionHandler: string;
   assignedAgentName?: string;
+  caretakerId?: string;
+  caretakerName?: string;
   // Readiness gate (Phase 2): vetted by the handler ⇒ bookable for inspection.
   readyForInspections: boolean;
   createdAt: Date;
@@ -307,6 +309,8 @@ export default function PropertiesPage() {
           inquiryCount: data.inquiryCount || 0,
           inspectionHandler: data.inspectionHandler || "self",
           assignedAgentName: data.assignedAgentName,
+          caretakerId: data.caretakerId,
+          caretakerName: data.caretakerName,
           readyForInspections: data.readyForInspections === true,
           createdAt: parseTimestamp(data.createdAt) || new Date(),
         };
@@ -969,7 +973,28 @@ function PropertyDetailPanel({
             )}
             <DetailRow icon={Users} label="Occupancy" value={`${property.currentTenantsCount || 0} / ${property.maxTenants} tenants`} />
             <DetailRow icon={Home} label="Rent" value={`${formatNaira(property.rent)} / ${property.rentFrequency === "yearly" ? "year" : "month"}`} />
-            <DetailRow icon={User} label="Inspection" value={property.inspectionHandler === "agent" ? `Agent: ${property.assignedAgentName || "Assigned"}` : "Self-handled"} />
+            <DetailRow
+              icon={User}
+              label="Inspection"
+              value={
+                property.inspectionHandler === "agent"
+                  ? `Agent: ${property.assignedAgentName || "Assigned"}`
+                  : property.inspectionHandler === "caretaker"
+                    ? `Caretaker: ${property.caretakerName || "Appointed"}`
+                    : "Self-handled"
+              }
+            />
+            {/* Who is actually acting on this unit. A dispute over an issue, a
+                maintenance record or a tenant message may have been handled by
+                the caretaker rather than the owner, so an adjudicating admin
+                needs to see that this listing is managed by someone else. */}
+            {property.caretakerId && (
+              <DetailRow
+                icon={User}
+                label="Caretaker"
+                value={property.caretakerName || "Appointed"}
+              />
+            )}
           </div>
 
           {/* Landlord */}
