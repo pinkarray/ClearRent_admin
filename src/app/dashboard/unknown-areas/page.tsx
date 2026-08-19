@@ -39,8 +39,8 @@ type StatusFilter = "all" | "pending" | "added" | "dismissed";
 interface AreaRequest {
   id: string;
   rawName: string;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   source: string;
   status: "pending" | "added" | "dismissed";
   createdAt: Date;
@@ -133,8 +133,11 @@ export default function UnknownAreasPage() {
         return {
           id: d.id,
           rawName: data.rawName ?? "",
-          lat: data.lat ?? 0,
-          lng: data.lng ?? 0,
+          // Absent, not zero. A report filed before the area could be
+          // geocoded has no position, and rendering that as 0.0000, 0.0000
+          // pointed the admin at the Atlantic off Ghana.
+          lat: typeof data.lat === "number" ? data.lat : null,
+          lng: typeof data.lng === "number" ? data.lng : null,
           source: data.source ?? "unknown",
           status: data.status ?? "pending",
           createdAt: parseTimestamp(data.createdAt),
@@ -408,15 +411,22 @@ export default function UnknownAreasPage() {
               before choosing.
             </p>
 
-            <a
-              href={mapsUrl(addingFor.lat, addingFor.lng)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-[rgb(var(--brand))] hover:underline mb-4"
-            >
-              <ExternalLink size={12} />
-              View {addingFor.lat.toFixed(4)}, {addingFor.lng.toFixed(4)} on the map
-            </a>
+            {addingFor.lat !== null && addingFor.lng !== null ? (
+              <a
+                href={mapsUrl(addingFor.lat, addingFor.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-[rgb(var(--brand))] hover:underline mb-4"
+              >
+                <ExternalLink size={12} />
+                View {addingFor.lat.toFixed(4)}, {addingFor.lng.toFixed(4)} on the map
+              </a>
+            ) : (
+              <p className="text-xs text-[rgb(var(--warning))] mb-4">
+                No position was captured for this report — search the name
+                yourself before picking an LGA.
+              </p>
+            )}
 
             <select
               value={pickedLga}
@@ -503,15 +513,19 @@ function AreaRow({
 
       {/* Coordinates */}
       <td className="px-4 py-3">
-        <a
-          href={mapsUrl(r.lat, r.lng)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[rgb(var(--brand))] hover:underline text-xs"
-        >
-          {r.lat.toFixed(4)}, {r.lng.toFixed(4)}
-          <ExternalLink size={11} />
-        </a>
+        {r.lat !== null && r.lng !== null ? (
+          <a
+            href={mapsUrl(r.lat, r.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[rgb(var(--brand))] hover:underline text-xs"
+          >
+            {r.lat.toFixed(4)}, {r.lng.toFixed(4)}
+            <ExternalLink size={11} />
+          </a>
+        ) : (
+          <span className="text-xs text-[rgb(var(--text-hint))]">no position</span>
+        )}
       </td>
 
       {/* Source */}
@@ -616,15 +630,19 @@ function AreaCard({
 
       {/* Details */}
       <div className="flex flex-wrap gap-3 text-xs text-[rgb(var(--text-secondary))]">
-        <a
-          href={mapsUrl(r.lat, r.lng)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[rgb(var(--brand))] hover:underline"
-        >
-          {r.lat.toFixed(4)}, {r.lng.toFixed(4)}
-          <ExternalLink size={10} />
-        </a>
+        {r.lat !== null && r.lng !== null ? (
+          <a
+            href={mapsUrl(r.lat, r.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[rgb(var(--brand))] hover:underline"
+          >
+            {r.lat.toFixed(4)}, {r.lng.toFixed(4)}
+            <ExternalLink size={10} />
+          </a>
+        ) : (
+          <span className="text-[rgb(var(--text-hint))]">no position</span>
+        )}
         <span className="bg-[rgb(var(--background))] px-2 py-0.5 rounded-md">
           {r.source.replace(/_/g, " ")}
         </span>
