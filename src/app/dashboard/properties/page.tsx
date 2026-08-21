@@ -812,6 +812,11 @@ function PropertyDetailPanel({
 
   const isPendingDoc = docInfo.status === "pending";
   const grouped = !!docInfo.building;
+  // No document at all. Approving is impossible — there is nothing to approve —
+  // but REJECTING is the only way to tell the landlord to upload one, and
+  // without it these listings sat here with no action available to anyone.
+  const isMissingDoc =
+    !grouped && (docInfo.status === "none" || !docInfo.url);
 
   // A compound is LAND: one C of O can cover a duplex and a bungalow side by
   // side. The landlord is never asked how many buildings are on it — the
@@ -1103,7 +1108,19 @@ function PropertyDetailPanel({
                   </div>
                 )}
 
-                {canWrite && isPendingDoc && showRejectForm && (
+                {canWrite && isMissingDoc && !showRejectForm && (
+                  <div className="pt-1">
+                    <button
+                      onClick={() => setShowRejectForm(true)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/30 text-red-500 text-sm font-semibold hover:bg-red-500/5 transition-colors"
+                    >
+                      <XCircle size={14} />
+                      Ask for the document
+                    </button>
+                  </div>
+                )}
+
+                {canWrite && (isPendingDoc || isMissingDoc) && showRejectForm && (
                   <div className="space-y-3">
                     <p className="text-sm font-medium text-[rgb(var(--text-primary))]">Reason for rejection</p>
                     <textarea
