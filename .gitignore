@@ -34,3 +34,6 @@ next-env.d.ts
 
 # claude code local settings
 .claude/settings.local.json
+
+# Local agent notes - machine paths and internal architecture detail.
+CLAUDE.md
