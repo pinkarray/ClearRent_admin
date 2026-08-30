@@ -29,6 +29,10 @@ export const RESOLVE_ON_PAGE: Record<string, string> = {
   // so it must not be dismissable from the feed — dismissing would hide money
   // someone says they never received while the dispute is still open.
   payout_disputed: "Rent Payouts",
+  // Approving or rejecting on the Verifications page closes this
+  // (onVerificationDecided). Offering Dismiss here only ever hid a user who is
+  // still blocked, waiting on a review that never happened.
+  verification_submitted: "Verifications",
 };
 
 // `inspection_lifecycle` is a single upserted doc per inspection that walks
@@ -49,7 +53,6 @@ const PENDING_WORK = new Set([
   "rental_interest",
   "agreement_ready",
   "agreement_disputed",
-  "verification_submitted",
   "issue_reported",
   "issue_fix_disputed",
   "issue_pending_stale",

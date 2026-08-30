@@ -7,6 +7,7 @@ import {
   where,
   onSnapshot,
   doc,
+  getDoc,
   updateDoc,
   writeBatch,
   serverTimestamp,
@@ -131,10 +132,11 @@ const TYPE_META: Record<
     icon: UserPlus,
     route: (a) => (a.targetId ? `/dashboard/users/${a.targetId}` : "/dashboard/users"),
   },
+  // The user page shows the verification state but cannot decide it — Approve /
+  // Reject live only on Verifications, which opens on its pending queue.
   verification_submitted: {
     icon: ShieldCheck,
-    route: (a) =>
-      a.targetId ? `/dashboard/users/${a.targetId}` : "/dashboard/users",
+    route: () => "/dashboard/verifications",
   },
   rental_interest: { icon: HeartHandshake, route: () => "/dashboard/rent-attention" },
   agreement_ready: {
@@ -203,6 +205,54 @@ export default function AlertsPage() {
   // Only routine info can be cleared in bulk — see isRoutineInfo. Anything with
   // an open case is left for a human, however quiet its severity.
   const routine = useMemo(() => items.filter(isRoutineInfo), [items]);
+
+  // `verification_submitted` has no Dismiss — the review on the Verifications
+  // page closes it. But that page only offers Approve/Reject while a user is
+  // still `pending`, so an alert whose review already happened can be cleared
+  // by nobody: not the feed, not the page. That is every alert raised before
+  // onVerificationDecided shipped, and afterwards anyone whose status left
+  // `pending` by a route that trigger doesn't watch (expiry, account deleted).
+  //
+  // So ask the user doc who is genuinely still waiting. One read per alert of
+  // this type, which is a handful.
+  const reviewTargets = useMemo(
+    () =>
+      items
+        .filter((i) => i.type === "verification_submitted" && i.targetId)
+        .map((i) => i.targetId as string),
+    [items]
+  );
+  const [reviewState, setReviewState] = useState<Record<string, string>>({});
+  const reviewKey = reviewTargets.join(",");
+
+  useEffect(() => {
+    if (reviewTargets.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const entries = await Promise.all(
+        reviewTargets.map(async (uid) => {
+          try {
+            const snap = await getDoc(doc(db, "users", uid));
+            // A deleted user is settled too — nobody can ever review them.
+            const status = snap.exists()
+              ? String(snap.data().verificationStatus ?? "none")
+              : "deleted";
+            return [uid, status] as const;
+          } catch {
+            // Unreadable: say nothing rather than wrongly offering Dismiss.
+            return [uid, ""] as const;
+          }
+        })
+      );
+      if (cancelled) return;
+      setReviewState(Object.fromEntries(entries.filter(([, v]) => v)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // reviewTargets is rebuilt on every snapshot; its contents are the input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewKey]);
 
   // A stalled handover is the one alert where dismissing achieves nothing: the
   // property stays off the market and the two parties are still disagreeing.
@@ -342,8 +392,15 @@ export default function AlertsPage() {
             // types close themselves when the admin acts (so no Dismiss at
             // all), while `openWork` types need a human to decide they're done
             // (so Dismiss stays, but the card says it resolves nothing).
-            const resolvePage = RESOLVE_ON_PAGE[item.type];
-            const openWork = hasOpenWork(item);
+            // Already reviewed: drop back to a plain card with a Dismiss, so
+            // the notice can be cleared by the human looking at it.
+            const decided =
+              item.targetId && item.type === "verification_submitted" ?
+                reviewState[item.targetId] : undefined;
+            const settled = Boolean(decided) && decided !== "pending";
+            const resolvePage = settled ?
+              undefined : RESOLVE_ON_PAGE[item.type];
+            const openWork = !settled && hasOpenWork(item);
             return (
               <div key={item.id} className="card">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -378,7 +435,11 @@ export default function AlertsPage() {
                           {timeAgo(item.createdAt)}
                         </p>
                       )}
-                      {resolvePage ? (
+                      {settled ? (
+                        <p className="text-[11px] text-[rgb(var(--text-hint))] mt-1 italic">
+                          Already reviewed — {decided}. Safe to dismiss.
+                        </p>
+                      ) : resolvePage ? (
                         <p className="text-[11px] text-[rgb(var(--text-hint))] mt-1 italic">
                           Resolve this from {resolvePage} — it clears here
                           automatically.
