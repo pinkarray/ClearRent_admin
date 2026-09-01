@@ -168,7 +168,7 @@ export default function RefundsPage() {
           id: d.id,
           amount: (data.amount || 0) as number,
           userId: data.userId || "",
-          propertyTitle: data.propertyTitle || "Unknown Property",
+          propertyTitle: data.propertyTitle || "",
           description: data.description || "Duplicate charge",
           duplicateOf: data.duplicateOf || undefined,
           createdAt: parseTimestamp(data.createdAt) || new Date(),
@@ -177,18 +177,41 @@ export default function RefundsPage() {
       rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       setFlagged(rows);
 
-      // Who was charged - the payer's name, for the audit trail.
+      // Who was charged, and which tenancy this duplicated.
+      //
+      // A rent payment doc carries no propertyTitle - the real one,
+      // CR_RENT_1788185837890_a56e9097, has neither that nor a description - so
+      // the title is resolved from the tenancy the charge duplicated. Without
+      // this the only row this section will ever show reads "Unknown Property".
       rows.forEach(async (row) => {
-        if (!row.userId) return;
         try {
-          const uDoc = await getDoc(doc(db, "users", row.userId));
-          if (!uDoc.exists()) return;
-          const payerName = uDoc.data().fullName as string | undefined;
+          let payerName: string | undefined;
+          if (row.userId) {
+            const uDoc = await getDoc(doc(db, "users", row.userId));
+            if (uDoc.exists()) payerName = uDoc.data().fullName;
+          }
+
+          let propertyTitle: string | undefined;
+          if (!row.propertyTitle && row.duplicateOf) {
+            const rDoc = await getDoc(
+              doc(db, "active_rentals", row.duplicateOf)
+            );
+            if (rDoc.exists()) propertyTitle = rDoc.data().propertyTitle;
+          }
+
           setFlagged((prev) =>
-            prev.map((f) => (f.id === row.id ? { ...f, payerName } : f))
+            prev.map((f) =>
+              f.id === row.id
+                ? {
+                    ...f,
+                    payerName: payerName ?? f.payerName,
+                    propertyTitle: propertyTitle ?? f.propertyTitle,
+                  }
+                : f
+            )
           );
         } catch {
-          /* the name is a nicety; the reference is what matters */
+          /* both are context; the reference and amount are what matter */
         }
       });
     });
@@ -404,7 +427,9 @@ export default function RefundsPage() {
           callable="markPaymentRefunded"
           method="paystack"
           amount={flaggedToMark.amount}
-          description={`Refund to ${flaggedToMark.payerName || "payer"} for ${flaggedToMark.propertyTitle}`}
+          description={`Duplicate charge refunded to ${
+            flaggedToMark.payerName || "the payer"
+          }${flaggedToMark.propertyTitle ? ` for ${flaggedToMark.propertyTitle}` : ""}`}
           onSuccess={() => setFlaggedToMark(null)}
           onClose={() => setFlaggedToMark(null)}
         />
@@ -446,9 +471,11 @@ function FlaggedPaymentCard({
               Reverse in Paystack
             </span>
           </div>
-          <p className="text-xs text-[rgb(var(--text-hint))] mt-0.5 truncate">
-            {payment.propertyTitle}
-          </p>
+          {payment.propertyTitle && (
+            <p className="text-xs text-[rgb(var(--text-hint))] mt-0.5 truncate">
+              {payment.propertyTitle}
+            </p>
+          )}
           <p className="text-xs text-[rgb(var(--text-secondary))] mt-0.5">
             {payment.description}
             {payment.duplicateOf ? " - duplicate of an existing tenancy" : ""}
