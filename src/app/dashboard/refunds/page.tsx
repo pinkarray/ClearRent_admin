@@ -41,6 +41,21 @@ interface Refund {
   bankLoading: boolean;
 }
 
+// A charge that has to go BACK to the payer, flagged on the payment itself
+// (`refundRequired: true`) rather than written into `refunds`. These are card
+// reversals done in the Paystack dashboard - no beneficiary bank account is
+// involved, which is exactly why they are not Refund rows.
+interface FlaggedPayment {
+  id: string; // the payment reference - what you search Paystack for
+  amount: number;
+  userId: string;
+  propertyTitle: string;
+  description: string;
+  duplicateOf?: string;
+  createdAt: Date;
+  payerName?: string;
+}
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function formatNaira(amount: number) {
@@ -57,6 +72,10 @@ export default function RefundsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [refundToMark, setRefundToMark] = useState<Refund | null>(null);
+  const [flagged, setFlagged] = useState<FlaggedPayment[]>([]);
+  const [flaggedToMark, setFlaggedToMark] = useState<FlaggedPayment | null>(
+    null
+  );
 
   // ── Listener ───────────────────────────────────────────────────────────────
 
@@ -132,6 +151,51 @@ export default function RefundsPage() {
     return () => unsub();
   }, []);
 
+  // Payments flagged for a Paystack reversal. A single-field equality filter,
+  // deliberately: pairing it with orderBy would need a composite index that
+  // does not exist, and a missing index makes Firestore throw rather than
+  // degrade. Sorted in memory, as everywhere else in this dashboard.
+  useEffect(() => {
+    const q = query(
+      collection(db, "payments"),
+      where("refundRequired", "==", true)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const rows: FlaggedPayment[] = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          amount: (data.amount || 0) as number,
+          userId: data.userId || "",
+          propertyTitle: data.propertyTitle || "Unknown Property",
+          description: data.description || "Duplicate charge",
+          duplicateOf: data.duplicateOf || undefined,
+          createdAt: parseTimestamp(data.createdAt) || new Date(),
+        };
+      });
+      rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      setFlagged(rows);
+
+      // Who was charged - the payer's name, for the audit trail.
+      rows.forEach(async (row) => {
+        if (!row.userId) return;
+        try {
+          const uDoc = await getDoc(doc(db, "users", row.userId));
+          if (!uDoc.exists()) return;
+          const payerName = uDoc.data().fullName as string | undefined;
+          setFlagged((prev) =>
+            prev.map((f) => (f.id === row.id ? { ...f, payerName } : f))
+          );
+        } catch {
+          /* the name is a nicety; the reference is what matters */
+        }
+      });
+    });
+
+    return () => unsub();
+  }, []);
+
   // ── Counts ─────────────────────────────────────────────────────────────────
 
   const pendingCount = refunds.filter((r) => r.status === "pending").length;
@@ -193,6 +257,40 @@ export default function RefundsPage() {
               Transfer the amount to the beneficiary&apos;s bank account, then mark it paid.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Paystack reversals - a different animal from the queue below, so it
+          gets its own block rather than a row that looks transferable. */}
+      {flagged.length > 0 && (
+        <div className="space-y-3">
+          <div className="card border-red-500/30 bg-red-500/5 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
+              <RotateCcw size={18} className="text-red-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[rgb(var(--text-primary))]">
+                {flagged.length} charge{flagged.length !== 1 ? "s" : ""} to reverse in Paystack -{" "}
+                <span className="text-red-500">
+                  {formatNaira(flagged.reduce((sum, f) => sum + f.amount, 0))}
+                </span>
+              </p>
+              <p className="text-xs text-[rgb(var(--text-secondary))] mt-0.5">
+                Money taken that has to go back to the card that paid. Refund it
+                in the Paystack dashboard, then record it here.
+              </p>
+            </div>
+          </div>
+
+          {flagged.map((f) => (
+            <FlaggedPaymentCard
+              key={f.id}
+              payment={f}
+              copied={copied}
+              onCopy={copyToClipboard}
+              onMarkRefunded={() => setFlaggedToMark(f)}
+            />
+          ))}
         </div>
       )}
 
@@ -297,6 +395,103 @@ export default function RefundsPage() {
           onClose={() => setRefundToMark(null)}
         />
       )}
+
+      {/* Record-refund modal. No `bank` - a card reversal has no destination
+          account, and `method` stops the modal warning about its absence. */}
+      {flaggedToMark && (
+        <MarkPaidModal
+          docId={flaggedToMark.id}
+          callable="markPaymentRefunded"
+          method="paystack"
+          amount={flaggedToMark.amount}
+          description={`Refund to ${flaggedToMark.payerName || "payer"} for ${flaggedToMark.propertyTitle}`}
+          onSuccess={() => setFlaggedToMark(null)}
+          onClose={() => setFlaggedToMark(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Flagged Payment Card ---
+
+function FlaggedPaymentCard({
+  payment,
+  copied,
+  onCopy,
+  onMarkRefunded,
+}: {
+  payment: FlaggedPayment;
+  copied: string | null;
+  onCopy: (text: string, key: string) => void;
+  onMarkRefunded: () => void;
+}) {
+  const { canWrite } = useAuth();
+  const copyKey = `${payment.id}-ref`;
+
+  return (
+    <div className="card border-red-500/20">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="w-11 h-11 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+          <RotateCcw size={20} className="text-red-500" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-[rgb(var(--text-primary))]">
+              {payment.payerName || "Loading..."}
+            </p>
+            <span className="badge-error gap-1">
+              <AlertTriangle size={11} />
+              Reverse in Paystack
+            </span>
+          </div>
+          <p className="text-xs text-[rgb(var(--text-hint))] mt-0.5 truncate">
+            {payment.propertyTitle}
+          </p>
+          <p className="text-xs text-[rgb(var(--text-secondary))] mt-0.5">
+            {payment.description}
+            {payment.duplicateOf ? " - duplicate of an existing tenancy" : ""}
+          </p>
+          {/* The reference IS the action: it is what you paste into Paystack. */}
+          <div className="flex items-center gap-1.5 mt-1">
+            <p className="text-xs text-[rgb(var(--text-secondary))] font-mono truncate">
+              {payment.id}
+            </p>
+            <button
+              onClick={() => onCopy(payment.id, copyKey)}
+              className="text-[rgb(var(--text-hint))] hover:text-[rgb(var(--brand))] transition-colors shrink-0"
+            >
+              {copied === copyKey ? (
+                <CheckCircle2 size={11} className="text-emerald-500" />
+              ) : (
+                <Copy size={11} />
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="text-right shrink-0">
+          <p className="text-base font-bold text-[rgb(var(--text-primary))] font-mono">
+            {formatNaira(payment.amount)}
+          </p>
+          <p className="text-[10px] text-[rgb(var(--text-hint))] mt-0.5">
+            {timeAgo(payment.createdAt)}
+          </p>
+        </div>
+
+        {canWrite && (
+          <div className="shrink-0">
+            <button
+              onClick={onMarkRefunded}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-colors"
+            >
+              <CheckCircle2 size={13} />
+              Mark Refunded
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

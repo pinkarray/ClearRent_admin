@@ -26,7 +26,18 @@ type CallableName =
   | "markInspectionAgentPayoutPaid"
   | "markRentLandlordPayoutPaid"
   | "markRentAgentCommissionPaid"
-  | "markRefundPaid";
+  | "markRefundPaid"
+  | "markPaymentRefunded";
+
+/**
+ * How the money actually moves. Everything this modal was built for is a
+ * "transfer" — an admin sends money to a beneficiary's bank account, so the
+ * modal shows that account and warns when it is missing. A "paystack" refund
+ * is the opposite shape: it is reversed onto the card that paid, no bank
+ * account exists or is needed, and the missing-bank warning would send the
+ * admin looking for details that will never be there.
+ */
+type PayMethod = "transfer" | "paystack";
 
 interface MarkPaidModalProps {
   /** Doc ID to mark paid. Passed straight through to the CF. */
@@ -39,6 +50,8 @@ interface MarkPaidModalProps {
   description: string;
   /** Beneficiary bank details, shown so the admin sees exactly who to pay. */
   bank?: { bankName?: string; accountName?: string; accountNumber?: string };
+  /** How the money moves. Defaults to a bank transfer. */
+  method?: PayMethod;
   /** Called when the CF returns success. Parent should refetch / clear state. */
   onSuccess: () => void;
   /** Called when the user dismisses without confirming. */
@@ -61,9 +74,11 @@ export function MarkPaidModal({
   amount,
   description,
   bank,
+  method = "transfer",
   onSuccess,
   onClose,
 }: MarkPaidModalProps) {
+  const isPaystack = method === "paystack";
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -120,7 +135,7 @@ export function MarkPaidModal({
             <div className="flex items-center gap-2">
               <CheckCircle2 size={18} className="text-[rgb(var(--brand))]" />
               <h2 className="font-display font-semibold text-[rgb(var(--text-primary))]">
-                Mark as Paid
+                {isPaystack ? "Record Refund" : "Mark as Paid"}
               </h2>
             </div>
             <button
@@ -150,8 +165,20 @@ export function MarkPaidModal({
               </p>
             </div>
 
-            {/* Beneficiary bank — exactly who this money goes to */}
-            {bank && (bank.accountNumber || bank.accountName) ? (
+            {/* Where the money goes. A Paystack refund has no destination to
+                show — it reverses onto the card that paid — so neither the
+                bank block nor its missing-details warning applies. */}
+            {isPaystack ? (
+              <div className="bg-[rgb(var(--background))] rounded-xl p-4 space-y-1.5">
+                <p className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
+                  How
+                </p>
+                <p className="text-sm text-[rgb(var(--text-secondary))]">
+                  Refunded in the Paystack dashboard, back to the card that
+                  paid. Do it there first — this only records that it happened.
+                </p>
+              </div>
+            ) : bank && (bank.accountNumber || bank.accountName) ? (
               <div className="bg-[rgb(var(--background))] rounded-xl p-4 space-y-1.5">
                 <p className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
                   Send to
@@ -201,14 +228,19 @@ export function MarkPaidModal({
             {/* Payment reference (required) */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
-                Payment Reference <span className="text-red-500">*</span>
+                {isPaystack ? "Paystack Refund Reference" : "Payment Reference"}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={paymentReference}
                 onChange={(e) => setPaymentReference(e.target.value)}
                 disabled={submitting}
-                placeholder="Bank transfer ref / Paystack ref"
+                placeholder={
+                  isPaystack
+                    ? "Refund ref from Paystack"
+                    : "Bank transfer ref / Paystack ref"
+                }
                 className="w-full px-3 py-2.5 rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--background))] text-[rgb(var(--text-primary))] text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--brand))]/30 focus:border-[rgb(var(--brand))] disabled:opacity-40"
               />
               <p className="text-xs text-[rgb(var(--text-hint))]">
@@ -269,7 +301,11 @@ export function MarkPaidModal({
                   : "bg-[rgb(var(--brand))] opacity-40 cursor-not-allowed"
               )}
             >
-              {submitting ? "Processing..." : "Confirm Payment"}
+              {submitting
+                ? "Processing..."
+                : isPaystack
+                ? "Confirm Refund"
+                : "Confirm Payment"}
             </button>
           </div>
         </div>
