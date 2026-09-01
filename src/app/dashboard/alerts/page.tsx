@@ -289,6 +289,31 @@ export default function AlertsPage() {
 
   // Dismiss = acknowledge an alert. Offered for everything except the types a
   // Cloud Function closes for us (see RESOLVE_ON_PAGE).
+  // An identity change is the one alert with no completion the system can
+  // observe: a user renames themselves and a human has to judge whether it
+  // looks like a takeover. Dismiss would hide it while recording nothing, so
+  // this goes through a callable that writes an audit entry first - the
+  // judgement IS the work, and now it leaves a trace.
+  async function markIdentityReviewed(item: AdminAlert) {
+    if (!canWrite || !item.targetId) return;
+    setBusyId(item.id);
+    try {
+      const fn = httpsCallable<{ uid: string }, { success: boolean }>(
+        functions,
+        "adminMarkIdentityReviewed"
+      );
+      await fn({ uid: item.targetId });
+      // The callable closes the alert; the listener drops the row.
+    } catch (err) {
+      console.error("Failed to mark identity change reviewed", err);
+      window.alert(
+        err instanceof Error ? err.message : "Couldn't record it. Try again."
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function dismissAlert(item: AdminAlert) {
     if (!canWrite || !user) return;
     setBusyId(item.id);
@@ -499,7 +524,21 @@ export default function AlertsPage() {
                             </button>
                           </>
                         )}
-                        {canWrite && (
+                        {canWrite && item.type === "profile_identity_change" && (
+                          <button
+                            disabled={busy}
+                            onClick={() => void markIdentityReviewed(item)}
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl bg-[rgb(var(--brand))] text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {busy ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Check size={14} />
+                            )}
+                            Mark reviewed
+                          </button>
+                        )}
+                        {canWrite && item.type !== "profile_identity_change" && (
                           <button
                             disabled={busy}
                             onClick={() => dismissAlert(item)}
