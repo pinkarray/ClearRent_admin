@@ -39,6 +39,19 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+// Mirrors OwnershipDocTypes in the app (core/constants/ownership_doc_types.dart).
+// The app used to offer only c_of_o / deed / other, so everything else was
+// forced into "Other" and reached this queue as an undifferentiated
+// "Property Document". Keep these keys in step with the app's list.
+const OWNERSHIP_DOC_LABELS: Record<string, string> = {
+  c_of_o: "Certificate of Occupancy",
+  deed: "Deed of Assignment",
+  governors_consent: "Governor's Consent",
+  conveyance: "Deed of Conveyance",
+  excision_gazette: "Excision / Gazette",
+  other: "Other document",
+};
+
 // Mirrors PropertyModel.typeLabels. 'shop'/'office' aren't pickable by a
 // landlord yet but still filterable, so an old listing can be found.
 type TypeFilter =
@@ -1040,17 +1053,33 @@ function PropertyDetailPanel({
             )}
 
             {docInfo.status === "none" || !docInfo.url ? (
-              <div className="p-4 rounded-xl bg-[rgb(var(--background))] border border-[rgb(var(--border))] text-center">
-                <FileText size={24} className="mx-auto text-[rgb(var(--text-hint))] mb-2" />
-                <p className="text-sm text-[rgb(var(--text-hint))]">No document uploaded</p>
+              // Not just "no document": a doc TYPE with no file means the
+              // landlord did attach one and the upload died on the way
+              // (Storage 403, dropped connection). That reached this panel as
+              // an empty review saying nothing and offering nothing to press,
+              // so a reviewer had no way to tell it from a landlord who never
+              // uploaded anything — and no way to act on either.
+              <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    {docInfo.type ? "Upload never completed" : "No document attached"}
+                  </span>
+                </div>
+                <p className="text-sm text-[rgb(var(--text-secondary))]">
+                  {grouped
+                    ? `No ownership document has been uploaded for ${docInfo.building!.name}, so there is nothing to review for any of its units.`
+                    : docInfo.type
+                    ? `The landlord chose ${OWNERSHIP_DOC_LABELS[docInfo.type] ?? "a document"}, but the file itself never reached us. There is nothing to approve — reject the listing to ask them to upload it again from Edit property.`
+                    : "This listing was published without an ownership document, so there is nothing to approve."}
+                </p>
               </div>
             ) : (
               <>
                 <div className="p-3 rounded-xl bg-[rgb(var(--background))] border border-[rgb(var(--border))]">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-[rgb(var(--text-secondary))]">
-                      {docInfo.type === "c_of_o" ? "Certificate of Occupancy" :
-                       docInfo.type === "deed" ? "Deed of Assignment" : "Property Document"}
+                      {OWNERSHIP_DOC_LABELS[docInfo.type ?? ""] ?? "Property Document"}
                     </span>
                     <DocStatusBadge status={docInfo.status} />
                   </div>
@@ -1108,46 +1137,51 @@ function PropertyDetailPanel({
                   </div>
                 )}
 
-                {canWrite && isMissingDoc && !showRejectForm && (
-                  <div className="pt-1">
-                    <button
-                      onClick={() => setShowRejectForm(true)}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/30 text-red-500 text-sm font-semibold hover:bg-red-500/5 transition-colors"
-                    >
-                      <XCircle size={14} />
-                      Ask for the document
-                    </button>
-                  </div>
-                )}
-
-                {canWrite && (isPendingDoc || isMissingDoc) && showRejectForm && (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium text-[rgb(var(--text-primary))]">Reason for rejection</p>
-                    <textarea
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder="Explain why this document is being rejected..."
-                      rows={3}
-                      className="input w-full resize-none text-sm"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { setShowRejectForm(false); setRejectReason(""); }}
-                        className="flex-1 py-2.5 rounded-xl border border-[rgb(var(--border))] text-sm text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => { if (rejectReason.trim()) onRejectDoc(rejectReason.trim()); }}
-                        disabled={!rejectReason.trim() || processing}
-                        className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50"
-                      >
-                        {processing ? <Loader2 size={14} className="animate-spin mx-auto" /> : "Confirm Rejection"}
-                      </button>
-                    </div>
-                  </div>
-                )}
               </>
+            )}
+
+            {/* Actions for a listing with NO document. These lived inside the
+                branch above, which only renders when a document EXISTS — so
+                the one case they were written for was the one case that could
+                never reach them, and a missing doc had no action at all. */}
+            {canWrite && isMissingDoc && !showRejectForm && (
+              <div className="pt-1">
+                <button
+                  onClick={() => setShowRejectForm(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/30 text-red-500 text-sm font-semibold hover:bg-red-500/5 transition-colors"
+                >
+                  <XCircle size={14} />
+                  Ask for the document
+                </button>
+              </div>
+            )}
+
+            {canWrite && (isPendingDoc || isMissingDoc) && showRejectForm && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-[rgb(var(--text-primary))]">Reason for rejection</p>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Explain why this document is being rejected..."
+                  rows={3}
+                  className="input w-full resize-none text-sm"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowRejectForm(false); setRejectReason(""); }}
+                    className="flex-1 py-2.5 rounded-xl border border-[rgb(var(--border))] text-sm text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { if (rejectReason.trim()) onRejectDoc(rejectReason.trim()); }}
+                    disabled={!rejectReason.trim() || processing}
+                    className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50"
+                  >
+                    {processing ? <Loader2 size={14} className="animate-spin mx-auto" /> : "Confirm Rejection"}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

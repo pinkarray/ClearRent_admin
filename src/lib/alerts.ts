@@ -33,6 +33,12 @@ export const RESOLVE_ON_PAGE: Record<string, string> = {
   // (onVerificationDecided). Offering Dismiss here only ever hid a user who is
   // still blocked, waiting on a review that never happened.
   verification_submitted: "Verifications",
+  // A listing whose ownership document never arrived. Two things close it and
+  // both live off this feed: the landlord re-uploading (the property trigger
+  // resolves it) or an admin rejecting the listing from Properties, which is
+  // how the landlord is actually told to try again. Dismissing by hand would
+  // hide a listing that is stuck with nothing to review.
+  property_doc_missing: "Properties",
 };
 
 // `inspection_lifecycle` is a single upserted doc per inspection that walks

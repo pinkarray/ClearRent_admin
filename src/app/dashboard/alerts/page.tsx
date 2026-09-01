@@ -138,6 +138,13 @@ const TYPE_META: Record<
     icon: ShieldCheck,
     route: () => "/dashboard/verifications",
   },
+  // A listing that says a document is pending review with no document behind
+  // it. The properties page holds the only two actions — see the file, or
+  // reject and ask the landlord for it.
+  property_doc_missing: {
+    icon: FileWarning,
+    route: () => "/dashboard/properties",
+  },
   rental_interest: { icon: HeartHandshake, route: () => "/dashboard/rent-attention" },
   agreement_ready: {
     icon: FileSignature,
