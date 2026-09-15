@@ -4,7 +4,7 @@
 // deleting an account left records behind that still referenced the dead uid:
 // rental interests, agent ratings, maintenance logs and buildings were never
 // cascaded, and no tombstone was written. The dashboard reads the denormalized
-// name off those records, so a deleted user kept rendering as a live party —
+// name off those records, so a deleted user kept rendering as a live party -
 // e.g. a paid-but-unaccepted rental sitting in Rent Attention for months with
 // nobody on the other end.
 //
@@ -16,7 +16,7 @@
 //     financial meaning.
 //
 // Financial records (money-touched rental interests, transactions, refunds) are
-// NEVER deleted here — they stay for audit and are resolved via the tombstone.
+// NEVER deleted here - they stay for audit and are resolved via the tombstone.
 //
 // Usage:
 //   node scripts/backfill-deleted-accounts.mjs           # dry run, changes nothing
@@ -56,7 +56,7 @@ const REFERENCES = [
   { collection: "buildings", uid: "landlordId", name: null },
 ];
 
-// Records that only serve their owner — safe to remove once the owner is gone.
+// Records that only serve their owner - safe to remove once the owner is gone.
 // `statuses: null` means every doc qualifies; a list restricts to those states.
 const SWEEPABLE = [
   { collection: "agent_ratings", fields: ["agentId", "raterId"], statuses: null },
@@ -85,7 +85,7 @@ function loadServiceAccount() {
         }
       }
     } catch {
-      /* no .env.local — fall through to the error below */
+      /* no .env.local - fall through to the error below */
     }
   }
   if (!raw) {
@@ -104,8 +104,8 @@ async function main() {
 
   console.log(
     apply
-      ? "APPLY mode — tombstones will be written and orphans deleted.\n"
-      : "DRY RUN — nothing will be written. Re-run with --apply to commit.\n"
+      ? "APPLY mode - tombstones will be written and orphans deleted.\n"
+      : "DRY RUN - nothing will be written. Re-run with --apply to commit.\n"
   );
 
   // ── 1. Collect every referenced uid, with the best name we can recover ──
@@ -147,7 +147,7 @@ async function main() {
   }
 
   if (missing.length === 0) {
-    console.log("\nNo dangling references — every referenced uid still exists.");
+    console.log("\nNo dangling references - every referenced uid still exists.");
     return;
   }
 
@@ -177,7 +177,7 @@ async function main() {
           uid,
           fullName: name,
           accountType: null,
-          // The real deletion time is unrecoverable for these — they predate
+          // The real deletion time is unrecoverable for these - they predate
           // the tombstone. Null distinguishes "we don't know" from a real date.
           deletedAt: null,
           backfilledAt: FieldValue.serverTimestamp(),
@@ -218,7 +218,7 @@ async function main() {
       `Done. ${tombstoned} tombstone(s) written, ${deleted} orphan record(s) deleted.`
     );
     console.log(
-      "Money-touched records were retained for audit — they now resolve to a " +
+      "Money-touched records were retained for audit - they now resolve to a " +
         "tombstone in the dashboard."
     );
   } else {

@@ -22,14 +22,14 @@ import {
 
 // ─── Rent Attention (money-flow gaps G1/G3/G4) ───────────────────────────────
 // Surfaces the rent states where money is stuck and a human needs to act:
-//   • Stranded — tenant paid + admin-verified, but the landlord never accepted
+//   • Stranded - tenant paid + admin-verified, but the landlord never accepted
 //     (rental_interests at payment_verified). The strand sweep flags the aged
 //     ones; admin chases the landlord or refunds the tenant out-of-band.
-//   • Unaccepted — the landlord sent the agreement and the tenant hasn't acted
+//   • Unaccepted - the landlord sent the agreement and the tenant hasn't acted
 //     (active_rentals agreementStatus == pending_review). Rent can't be paid
 //     until it's finalized, so a stalled one silently halts the whole funnel.
 //     This is where the `agreement_ready` admin alert lands.
-//   • Disputed — the tenant is disputing the tenancy agreement (active_rentals
+//   • Disputed - the tenant is disputing the tenancy agreement (active_rentals
 //     agreementStatus == disputed). The payout gate HOLDS the landlord/agent
 //     money until resolved; admin can force-finalize once settled.
 
@@ -181,7 +181,7 @@ export default function RentAttentionPage() {
 
   const flaggedCount = stranded.filter((s) => s.strandedForReview).length;
 
-  // Longest-waiting agreement first — that's the one most likely stuck.
+  // Longest-waiting agreement first - that's the one most likely stuck.
   const unacceptedSorted = useMemo(
     () =>
       [...unaccepted].sort(
@@ -219,7 +219,7 @@ export default function RentAttentionPage() {
           <section className="space-y-3">
             <SectionHeader
               icon={Hourglass}
-              title="Paid — awaiting landlord acceptance"
+              title="Paid - awaiting landlord acceptance"
               count={strandedSorted.length}
             />
             {strandedSorted.length === 0 ? (
@@ -235,7 +235,7 @@ export default function RentAttentionPage() {
           <section className="space-y-3">
             <SectionHeader
               icon={FileSignature}
-              title="Agreement sent — awaiting tenant"
+              title="Agreement sent - awaiting tenant"
               count={unacceptedSorted.length}
             />
             {unacceptedSorted.length === 0 ? (
@@ -249,7 +249,7 @@ export default function RentAttentionPage() {
 
           {/* Disputed */}
           <section className="space-y-3">
-            <SectionHeader icon={Gavel} title="Disputed agreements — payout held" count={disputed.length} />
+            <SectionHeader icon={Gavel} title="Disputed agreements - payout held" count={disputed.length} />
             {disputed.length === 0 ? (
               <EmptyNote text="No open agreement disputes." />
             ) : (
@@ -299,7 +299,7 @@ function StrandedCard({ item, router }: { item: Stranded; router: ReturnType<typ
       <p className="mt-3 pt-3 border-t border-[rgb(var(--border))] text-xs text-[rgb(var(--text-hint))] flex items-start gap-1.5">
         <ShieldQuestion size={13} className="shrink-0 mt-0.5" />
         Chase the landlord to accept, or refund the tenant. No money moves
-        automatically — this is a review queue.
+        automatically - this is a review queue.
       </p>
     </div>
   );
@@ -346,7 +346,7 @@ function UnacceptedCard({
       <p className="mt-3 pt-3 border-t border-[rgb(var(--border))] text-xs text-[rgb(var(--text-hint))] flex items-start gap-1.5">
         <ShieldQuestion size={13} className="shrink-0 mt-0.5" />
         The tenant must accept before rent can be paid. Nudge them, or check the
-        landlord uploaded the right document — this is a review queue.
+        landlord uploaded the right document - this is a review queue.
       </p>
     </div>
   );
@@ -409,11 +409,11 @@ function DisputedCard({ item, router }: { item: Disputed; router: ReturnType<typ
       <div className="mt-3 pt-3 border-t border-[rgb(var(--border))]">
         {done ? (
           <p className="flex items-center gap-1.5 text-xs text-emerald-500">
-            <CheckCircle2 size={13} /> Agreement finalized — the payout can now be sent from Rent Payouts.
+            <CheckCircle2 size={13} /> Agreement finalized - the payout can now be sent from Rent Payouts.
           </p>
         ) : !canWrite ? (
           <p className="text-xs text-[rgb(var(--text-hint))]">
-            Read-only — resolving disputes requires a full admin account.
+            Read-only - resolving disputes requires a full admin account.
           </p>
         ) : !showForm ? (
           <button

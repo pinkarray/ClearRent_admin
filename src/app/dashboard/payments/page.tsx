@@ -114,7 +114,7 @@ export default function PaymentsPage() {
       }
     };
 
-    // Inspection payments — paymentStatus in [pending_verification, paid, refunded]
+    // Inspection payments - paymentStatus in [pending_verification, paid, refunded]
     const inspQ = query(
       collection(db, "inspection_requests"),
       where("paymentStatus", "in", ["pending_verification", "paid", "refunded"]),
@@ -151,7 +151,7 @@ export default function PaymentsPage() {
       merge();
     });
 
-    // Rent payments — rental_interests with status paymentUploaded or paymentVerified
+    // Rent payments - rental_interests with status paymentUploaded or paymentVerified
     const rentQ = query(
       collection(db, "rental_interests"),
       where("status", "in",
@@ -194,8 +194,8 @@ export default function PaymentsPage() {
       merge();
     });
 
-    // Listing fee payments — properties with listingFeeStatus in [pending, approved, rejected]
-    // Note: no orderBy to avoid composite index requirement — sorted client-side in merge()
+    // Listing fee payments - properties with listingFeeStatus in [pending, approved, rejected]
+    // Note: no orderBy to avoid composite index requirement - sorted client-side in merge()
     const listingQ = query(
       collection(db, "properties"),
       where("listingFeeStatus", "in", ["pending", "approved", "rejected"])
@@ -214,7 +214,7 @@ export default function PaymentsPage() {
             tenantPhone: data.landlordPhone,
             propertyId: d.id,
             propertyTitle: data.title || "Unknown Property",
-            // Exact street address is in the gated subdoc now — show area-level.
+            // Exact street address is in the gated subdoc now - show area-level.
             propertyAddress:
               [data.city, data.state].filter(Boolean).join(", ") ||
               data.address ||
@@ -243,7 +243,7 @@ export default function PaymentsPage() {
       },
       (error) => {
         console.error("❌ Listing fee query failed:", error);
-        // Don't block the page — just mark as loaded with empty results
+        // Don't block the page - just mark as loaded with empty results
         listingFeePayments = [];
         loaded.listingFee = true;
         merge();
@@ -557,7 +557,7 @@ function PaymentCard({
           {payment.propertyTitle} · {payment.propertyAddress}
         </p>
         <p className="text-xs text-[rgb(var(--text-hint))] mt-0.5">
-          {payment.createdAt ? timeAgo(payment.createdAt) : "—"}
+          {payment.createdAt ? timeAgo(payment.createdAt) : "-"}
           {payment.paymentReference && (
             <span className="ml-2 font-mono opacity-60">
               #{payment.paymentReference.slice(-8)}
@@ -799,7 +799,7 @@ function PaymentDetailPanel({
             </div>
           )}
 
-          {/* Actions — only for pending */}
+          {/* Actions - only for pending */}
           {canWrite && isPending && (
             <div className="space-y-3 pt-2">
               {!showRefundForm ? (

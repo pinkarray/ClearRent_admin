@@ -22,7 +22,7 @@ export default function RootPage() {
     }
   }, [user, isAdmin, loading, redirecting, router]);
 
-  // Safety fallback — if stuck loading for >5s, go to login
+  // Safety fallback - if stuck loading for >5s, go to login
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (loading && !redirecting) {

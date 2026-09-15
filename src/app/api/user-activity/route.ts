@@ -6,10 +6,10 @@ import { getAdminAuth } from "@/lib/firebase-admin";
 // Last login comes from Auth itself (`metadata.lastSignInTime`), not from a
 // field the app writes. That matters: it is recorded server-side by Firebase on
 // every real authentication, works retroactively for accounts that existed
-// before any of this was built, and cannot be forged by a modified client —
+// before any of this was built, and cannot be forged by a modified client -
 // unlike `lastSeenAt`, which the user's own device writes.
 //
-// Auth: same gate as /api/verification-image — a valid ID token belonging to an
+// Auth: same gate as /api/verification-image - a valid ID token belonging to an
 // admin, superAdmin, or read-only viewer. This is PII-adjacent (when someone
 // last used the product), so it is never public.
 export async function POST(req: NextRequest) {

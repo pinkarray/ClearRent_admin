@@ -56,7 +56,7 @@ interface AnalyticsData {
   /// Properties + buildings whose ownership doc is awaiting admin review.
   pendingDocProperties: number;
 
-  // Money — naira totals from `payments` (status 'completed'), by type.
+  // Money - naira totals from `payments` (status 'completed'), by type.
   revenueRent: number;
   revenueInspection: number;
   revenueListing: number;
@@ -65,14 +65,14 @@ interface AnalyticsData {
   refundsPending: number;
   refundsPendingValue: number;
 
-  // Funnel — interest through to a started tenancy.
+  // Funnel - interest through to a started tenancy.
   rentalInterests: number;
   inspectionsRequested: number;
   inspectionsPaid: number;
   inspectionsCompleted: number;
   rentalsStarted: number;
 
-  // Trends — last 7 days vs the 7 before it.
+  // Trends - last 7 days vs the 7 before it.
   newUsers7d: number;
   newUsersPrev7d: number;
   newProperties7d: number;
@@ -226,7 +226,7 @@ export default function AnalyticsPage() {
       const in30d = Timestamp.fromMillis(now + 30 * day);
       const payments = collection(db, "payments");
 
-      // Revenue by type. Only 'completed' counts — an initiated-but-unpaid
+      // Revenue by type. Only 'completed' counts - an initiated-but-unpaid
       // charge is not money.
       const revenueOf = async (type: string) => {
         const snap = await getAggregateFromServer(
@@ -362,7 +362,7 @@ export default function AnalyticsPage() {
       }
     }
 
-    // Property type breakdown — live listener on small sample
+    // Property type breakdown - live listener on small sample
     const propUnsub = onSnapshot(
       query(collection(db, "properties"), orderBy("createdAt", "desc")),
       (snap) => {
@@ -413,7 +413,7 @@ export default function AnalyticsPage() {
             Analytics
           </h1>
           <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-            Platform snapshot — live counts across all collections.
+            Platform snapshot - live counts across all collections.
           </p>
         </div>
         {data.loading && (
@@ -685,7 +685,7 @@ function naira(amount: number): string {
 
 /**
  * A count for the last 7 days against the 7 before it. With no prior activity
- * there is no percentage to show — "no change" would be a lie when the previous
+ * there is no percentage to show - "no change" would be a lie when the previous
  * window is zero, so it shows the raw baseline instead.
  */
 function TrendStat({ label, value, previous, money, loading }: {
@@ -789,7 +789,7 @@ function RatioCard({ label, numerator, denominator, color, icon: Icon, loading }
           style={{ width: loading ? "0%" : `${pct}%` }}
         />
       </div>
-      <p className="text-[11px] text-[rgb(var(--text-hint))]">{loading ? "—" : `${pct}%`}</p>
+      <p className="text-[11px] text-[rgb(var(--text-hint))]">{loading ? "-" : `${pct}%`}</p>
     </div>
   );
 }

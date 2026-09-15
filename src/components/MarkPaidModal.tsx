@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MarkPaidModal — admin confirmation gate before invoking any of the
+ * MarkPaidModal - admin confirmation gate before invoking any of the
  * mark*Paid Cloud Functions. Collects a required paymentReference and
  * an optional paymentNote, calls the provided CF, surfaces errors
  * inline, and reports success up so the parent can clear local state.
@@ -31,7 +31,7 @@ type CallableName =
 
 /**
  * How the money actually moves. Everything this modal was built for is a
- * "transfer" — an admin sends money to a beneficiary's bank account, so the
+ * "transfer" - an admin sends money to a beneficiary's bank account, so the
  * modal shows that account and warns when it is missing. A "paystack" refund
  * is the opposite shape: it is reversed onto the card that paid, no bank
  * account exists or is needed, and the missing-bank warning would send the
@@ -61,7 +61,7 @@ interface MarkPaidModalProps {
 /**
  * Format a naira amount for display. Matches the project convention
  * (₦ glyph + comma-thousands, no decimal). Local helper to keep this
- * component drop-in — does not reuse a project-wide formatNaira because
+ * component drop-in - does not reuse a project-wide formatNaira because
  * different pages have different ones inline.
  */
 function formatNaira(n: number): string {
@@ -113,7 +113,7 @@ export function MarkPaidModal({
     } catch (err) {
         // Callable errors arrive as Error subclasses with a `code` field set
         // to the HttpsError code ("failed-precondition", "permission-denied",
-        // etc). They satisfy `instanceof Error` so we use that — there's no
+        // etc). They satisfy `instanceof Error` so we use that - there's no
         // runtime `FunctionsError` class to check against in the v10 SDK.
         const message =
             err instanceof Error ? err.message : "Something went wrong. Try again.";
@@ -166,7 +166,7 @@ export function MarkPaidModal({
             </div>
 
             {/* Where the money goes. A Paystack refund has no destination to
-                show — it reverses onto the card that paid — so neither the
+                show - it reverses onto the card that paid - so neither the
                 bank block nor its missing-details warning applies. */}
             {isPaystack ? (
               <div className="bg-[rgb(var(--background))] rounded-xl p-4 space-y-1.5">
@@ -175,7 +175,7 @@ export function MarkPaidModal({
                 </p>
                 <p className="text-sm text-[rgb(var(--text-secondary))]">
                   Refunded in the Paystack dashboard, back to the card that
-                  paid. Do it there first — this only records that it happened.
+                  paid. Do it there first - this only records that it happened.
                 </p>
               </div>
             ) : bank && (bank.accountNumber || bank.accountName) ? (
@@ -190,7 +190,7 @@ export function MarkPaidModal({
                 )}
                 <div className="flex items-center gap-2">
                   <p className="text-sm text-[rgb(var(--text-secondary))]">
-                    {bank.bankName || "Bank —"}
+                    {bank.bankName || "Bank -"}
                     {bank.accountNumber ? (
                       <span style={{ fontFamily: "Roboto, monospace" }}>
                         {" "}· {bank.accountNumber}
@@ -220,7 +220,7 @@ export function MarkPaidModal({
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
                 <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-600 dark:text-amber-400">
-                  No bank details on file — confirm with the recipient before sending.
+                  No bank details on file - confirm with the recipient before sending.
                 </p>
               </div>
             )}
@@ -268,7 +268,7 @@ export function MarkPaidModal({
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
                 <Eye size={16} className="text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-600 dark:text-amber-400">
-                  Read-only access — you can review this payment but not mark it paid.
+                  Read-only access - you can review this payment but not mark it paid.
                 </p>
               </div>
             )}

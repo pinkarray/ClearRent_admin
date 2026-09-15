@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Formatting moved to @/lib/format — import from there in new code. Re-exported
+// Formatting moved to @/lib/format - import from there in new code. Re-exported
 // here so the existing call sites keep working.
 export {
   formatCurrency,

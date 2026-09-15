@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 /*
  * Makes the dashboard installable.
  *
- * This is not cosmetic — it is a hard requirement for push on iPhone. iOS only
+ * This is not cosmetic - it is a hard requirement for push on iPhone. iOS only
  * exposes the Web Push API to a site added to the Home Screen (iOS 16.4+); in a
  * normal Safari tab the permission prompt is not even offered. Android does not
  * need the install, but gets a better experience with it.

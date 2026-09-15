@@ -263,7 +263,7 @@ export default function InspectionDayPage() {
             </Group>
           )}
           {overdue.length > 0 && (
-            <Group title="Overdue — no outcome yet" tone="amber" count={overdue.length}>
+            <Group title="Overdue - no outcome yet" tone="amber" count={overdue.length}>
               {overdue.map((i) => (
                 <InspectionCard key={i.id} item={i} {...cardProps} />
               ))}

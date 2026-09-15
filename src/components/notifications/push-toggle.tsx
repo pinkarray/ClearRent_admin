@@ -50,7 +50,7 @@ export function PushToggle() {
     setDone(true);
   }
 
-  // iOS refuses push in a normal Safari tab regardless of version — the site
+  // iOS refuses push in a normal Safari tab regardless of version - the site
   // has to be on the Home Screen first. Say so plainly instead of showing a
   // button that cannot work.
   const iosNeedsInstall =
@@ -88,7 +88,7 @@ export function PushToggle() {
         <div className="mt-4 space-y-2">
           <p className="text-sm text-muted-foreground">
             Notifications are allowed. Re-register if you stopped receiving
-            them — tokens expire when browser data is cleared.
+            them - tokens expire when browser data is cleared.
           </p>
           <button
             className="rounded-md border px-4 py-2 text-sm"
@@ -110,7 +110,7 @@ export function PushToggle() {
 
       {done && (
         <p className="mt-3 text-sm text-emerald-600">
-          Done — this device will now receive actionable alerts.
+          Done - this device will now receive actionable alerts.
         </p>
       )}
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}

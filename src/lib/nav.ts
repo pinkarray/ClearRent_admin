@@ -1,7 +1,7 @@
 // Sidebar structure.
 //
 // Was a flat twenty-item array in dashboard-shell.tsx, ordered by roughly when
-// each screen was built — Pricing next to Settings, Rent Attention buried
+// each screen was built - Pricing next to Settings, Rent Attention buried
 // between two unrelated review queues, and three separate payout screens spread
 // across the list. Grouped here by what an admin is actually trying to do, and
 // kept as data so the shell stays presentation-only.
@@ -66,7 +66,7 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // Everything that moves money, together — previously scattered.
+    // Everything that moves money, together - previously scattered.
     label: "Money",
     items: [
       { label: "Payments", href: "/dashboard/payments", icon: CreditCard },

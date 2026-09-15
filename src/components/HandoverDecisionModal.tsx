@@ -3,7 +3,7 @@
 /*
   Adjudicating a contested move-out.
 
-  Closing the handover is unconditional — whoever was right, the property has
+  Closing the handover is unconditional - whoever was right, the property has
   been held off the market long enough, and an argument about money should not
   keep a unit dark indefinitely. What the finding changes is what is recorded
   against the landlord, not whether they can trade.
@@ -167,7 +167,7 @@ export function HandoverDecisionModal({
           </legend>
           <p className="text-xs text-muted-foreground">
             {canPenalise
-              ? "Neither is automatic anywhere else. Both are hard to undo — a suspension cannot be untold."
+              ? "Neither is automatic anywhere else. Both are hard to undo - a suspension cannot be untold."
               : "Available only when you find the deduction was not justified."}
           </p>
 

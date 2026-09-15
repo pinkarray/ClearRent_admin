@@ -82,7 +82,7 @@ export default function RefundsPage() {
   useEffect(() => {
     // No orderBy: an `in` filter + orderBy on another field needs a composite
     // index this fresh collection has none for (would silently return empty).
-    // Sort client-side instead — the pattern used elsewhere in the app.
+    // Sort client-side instead - the pattern used elsewhere in the app.
     const q = query(
       collection(db, "refunds"),
       where("status", "in", ["pending", "paid"])
@@ -273,7 +273,7 @@ export default function RefundsPage() {
           </div>
           <div>
             <p className="text-sm font-semibold text-[rgb(var(--text-primary))]">
-              {pendingCount} refund{pendingCount !== 1 ? "s" : ""} awaiting payout —{" "}
+              {pendingCount} refund{pendingCount !== 1 ? "s" : ""} awaiting payout -{" "}
               <span className="text-amber-500">{formatNaira(totalPending)}</span>
             </p>
             <p className="text-xs text-[rgb(var(--text-secondary))] mt-0.5">
@@ -596,7 +596,7 @@ function RefundCard({
               </button>
             </div>
           ) : (
-            <p className="text-xs text-amber-500 mt-1">No bank details saved — contact the beneficiary.</p>
+            <p className="text-xs text-amber-500 mt-1">No bank details saved - contact the beneficiary.</p>
           )}
         </div>
 

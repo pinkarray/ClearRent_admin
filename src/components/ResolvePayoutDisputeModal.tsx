@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * ResolvePayoutDisputeModal — the admin's answer to "I never got the money".
+ * ResolvePayoutDisputeModal - the admin's answer to "I never got the money".
  *
  * A beneficiary (landlord or agent) can dispute a payout we already marked
- * sent. This closes that out: the admin attaches evidence of delivery —
- * normally a screenshot of the bank transfer — writes an explanation the
+ * sent. This closes that out: the admin attaches evidence of delivery -
+ * normally a screenshot of the bank transfer - writes an explanation the
  * beneficiary will read, and calls resolvePayoutDispute.
  *
  * The proof is uploaded to `payout-proof/{rentalId}/…`, an admin-only,
@@ -60,7 +60,7 @@ export function ResolvePayoutDisputeModal({
 
   const submit = async () => {
     if (!note.trim()) {
-      setError("Explain what you found — the beneficiary reads this.");
+      setError("Explain what you found - the beneficiary reads this.");
       return;
     }
     setBusy(true);

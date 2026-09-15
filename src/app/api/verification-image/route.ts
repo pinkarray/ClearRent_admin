@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getAdminAuth, getAdminStorage } from "@/lib/firebase-admin";
 // Streams a private verification document from Firebase Storage.
 // Auth: requires a valid Firebase ID token (Authorization: Bearer <token>)
-// belonging to an admin (admin OR superAdmin) or a read-only viewer — mirrors
+// belonging to an admin (admin OR superAdmin) or a read-only viewer - mirrors
 // canRead() in firestore.rules. Viewing is a read, so read-only accounts are
 // allowed; the bytes are streamed through this route (no public/signed URL).
 export async function GET(req: NextRequest) {
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // 2. Read gate — same model as canRead() in Firestore rules: full admins
+  // 2. Read gate - same model as canRead() in Firestore rules: full admins
   //    (admin/superAdmin) or read-only viewers. Viewing a doc is a read.
   if (
     claims.admin !== true &&
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   }
 
   // 3. Validate the path. Only private verification/*, ownership/* (C of O /
-  // deed), agreements/* and payout-proof/* objects are servable here — all
+  // deed), agreements/* and payout-proof/* objects are servable here - all
   // admin-readable PII. payout-proof/* is the transfer evidence an admin
   // attaches when resolving a "the payout never arrived" dispute.
   const path = req.nextUrl.searchParams.get("path");

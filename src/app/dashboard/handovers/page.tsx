@@ -3,8 +3,8 @@
 /*
   Move-out handovers awaiting a human.
 
-  ClearRent never holds the caution deposit — it moves landlord-to-tenant
-  off-platform — so the platform cannot return it, release it, or compel it.
+  ClearRent never holds the caution deposit - it moves landlord-to-tenant
+  off-platform - so the platform cannot return it, release it, or compel it.
   What it can do is refuse to relist the property, and that is the whole of the
   leverage. Every row here is a unit sitting off the market.
 
@@ -169,7 +169,7 @@ export default function HandoversPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Every property here is off the market until its caution deposit is
-          settled. ClearRent never holds that money — withholding the relisting
+          settled. ClearRent never holds that money - withholding the relisting
           is the only leverage there is.
         </p>
       </header>
@@ -203,7 +203,7 @@ export default function HandoversPage() {
       />
       <Section
         title={`Stuck (${STALE_DAYS}+ days)`}
-        hint="Nobody is arguing — it has simply stalled, and the unit earns nothing meanwhile."
+        hint="Nobody is arguing - it has simply stalled, and the unit earns nothing meanwhile."
         icon={AlertTriangle}
         tone="warn"
         rows={stuck}
@@ -333,7 +333,7 @@ function HandoverCard({
             ? "Tenant's recording still uploading"
             : h.evidenceAt
               ? `Tenant recorded ${timeAgo(h.evidenceAt)}`
-              : "No tenant recording — a deduction cannot rest on much"}
+              : "No tenant recording - a deduction cannot rest on much"}
         </span>
         <span className="flex items-center gap-1">
           <CheckCircle2 className="h-3 w-3" />

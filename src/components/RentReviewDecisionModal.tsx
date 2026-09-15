@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * RentReviewDecisionModal — admin confirmation gate for approving or
+ * RentReviewDecisionModal - admin confirmation gate for approving or
  * rejecting a landlord rent-review request. Sibling to MarkPaidModal but a
  * DIFFERENT callable contract: these CFs take { requestId } (+ decisionReason
- * for reject) and return { success, requestId } — not the payment shape.
+ * for reject) and return { success, requestId } - not the payment shape.
  *
  * Approve picks the callable by change type:
  *   - scheduled  → approveRentReview({ requestId })
@@ -170,7 +170,7 @@ export function RentReviewDecisionModal({
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
                 <Eye size={16} className="text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-600 dark:text-amber-400">
-                  Read-only access — you can review this request but not decide it.
+                  Read-only access - you can review this request but not decide it.
                 </p>
               </div>
             )}

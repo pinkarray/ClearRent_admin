@@ -82,7 +82,7 @@ function mapsUrl(lat: number, lng: number) {
 }
 
 /**
- * LGAs the app prices against — mirrors `lgas` + `outerLGA` in
+ * LGAs the app prices against - mirrors `lgas` + `outerLGA` in
  * lib/core/utils/inspection_pricing.dart. An area must map to one of these:
  * the chosen LGA is what decides the inspection fee, and the app rejects any
  * remote entry whose LGA it doesn't recognise.
@@ -190,7 +190,7 @@ export default function UnknownAreasPage() {
   /**
    * Publishes the area for real: writes it into `config/areas`, which every
    * app merges over its compiled list at startup. This is what makes "added"
-   * mean added — before this it only changed a status field, and the area
+   * mean added - before this it only changed a status field, and the area
    * still needed a code change and a Play Store release to appear.
    *
    * Every pending row for the same name is resolved together, since the app
@@ -260,7 +260,7 @@ export default function UnknownAreasPage() {
         <div className="text-sm text-[rgb(var(--text-secondary))] space-y-1">
           <p className="font-medium text-[rgb(var(--text-primary))]">How to add an area</p>
           <ol className="list-decimal list-inside space-y-0.5">
-            <li>Copy the area name (use the copy button — it gives you the lowercase key)</li>
+            <li>Copy the area name (use the copy button - it gives you the lowercase key)</li>
             <li>Open <code className="text-xs bg-[rgb(var(--background))] px-1 py-0.5 rounded">lib/core/utils/inspection_pricing.dart</code></li>
             <li>Add the entry to <code className="text-xs bg-[rgb(var(--background))] px-1 py-0.5 rounded">_areaToCluster</code> with the correct cluster</li>
             <li>Click "Mark as Added" here so it doesn't show up again</li>
@@ -423,7 +423,7 @@ export default function UnknownAreasPage() {
               </a>
             ) : (
               <p className="text-xs text-[rgb(var(--warning))] mb-4">
-                No position was captured for this report — search the name
+                No position was captured for this report - search the name
                 yourself before picking an LGA.
               </p>
             )}
@@ -443,7 +443,7 @@ export default function UnknownAreasPage() {
 
             <p className="text-[11px] text-[rgb(var(--text-hint))] mb-4">
               Publishes to <code>config/areas</code>. Landlords see it the next
-              time they open the app — no release needed.
+              time they open the app - no release needed.
             </p>
 
             <div className="flex gap-2 justify-end">
@@ -551,7 +551,7 @@ function AreaRow({
       {/* Actions */}
       <td className="px-4 py-3">
         {!canWrite ? (
-          <span className="text-xs text-[rgb(var(--text-hint))]">—</span>
+          <span className="text-xs text-[rgb(var(--text-hint))]">-</span>
         ) : updating ? (
           <Loader2 size={16} className="animate-spin text-[rgb(var(--text-hint))]" />
         ) : r.status === "pending" ? (

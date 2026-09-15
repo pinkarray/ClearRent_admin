@@ -1,6 +1,6 @@
 // Formatting helpers shared across the dashboard.
 //
-// These used to be redefined per screen — `toDate` existed in four pages,
+// These used to be redefined per screen - `toDate` existed in four pages,
 // `formatDate` in three, each with slightly different fallbacks. One home, one
 // behaviour. `cn` deliberately stays in utils.ts (Tailwind convention).
 
@@ -32,9 +32,9 @@ export function daysSince(d: Date | null | undefined): number {
   return Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000));
 }
 
-/** Short absolute date — "12 Feb 2026". Em dash when there's nothing to show. */
+/** Short absolute date - "12 Feb 2026". Em dash when there's nothing to show. */
 export function formatDate(d: Date | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "-";
   return d.toLocaleDateString("en-NG", {
     day: "numeric",
     month: "short",
@@ -42,9 +42,9 @@ export function formatDate(d: Date | null | undefined): string {
   });
 }
 
-/** Absolute date with time — for audit trails where the hour matters. */
+/** Absolute date with time - for audit trails where the hour matters. */
 export function formatDateTime(d: Date | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "-";
   return d.toLocaleString("en-NG", {
     day: "numeric",
     month: "short",
@@ -67,14 +67,14 @@ export function timeAgo(date: Date): string {
   return date.toLocaleDateString("en-NG", { month: "short", day: "numeric" });
 }
 
-/** "1 day" / "3 days" — pluralisation for waiting-time copy. */
+/** "1 day" / "3 days" - pluralisation for waiting-time copy. */
 export function pluralDays(n: number): string {
   return `${n} day${n === 1 ? "" : "s"}`;
 }
 
 // ─── Money ───────────────────────────────────────────────────────────────────
 
-/** Naira, no decimals — "₦200,000". The dashboard never shows kobo. */
+/** Naira, no decimals - "₦200,000". The dashboard never shows kobo. */
 export function naira(amount: number | null | undefined): string {
   return `₦${(amount || 0).toLocaleString("en-NG")}`;
 }
@@ -91,7 +91,7 @@ export function formatCurrency(amount: number): string {
 
 // ─── Text ────────────────────────────────────────────────────────────────────
 
-/** Compact counts for stat tiles — 1.2K, 3.4M. */
+/** Compact counts for stat tiles - 1.2K, 3.4M. */
 export function formatNumber(num: number): string {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;

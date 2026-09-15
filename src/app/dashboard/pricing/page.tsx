@@ -84,7 +84,7 @@ const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
   {
     key: "dealFee",
     label: "Deal completion fee",
-    hint: "Per party on a completed rental — also sets the tenant's rent total",
+    hint: "Per party on a completed rental - also sets the tenant's rent total",
   },
   {
     key: "minRent",
@@ -92,7 +92,7 @@ const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
     hint:
       "Lowest rent a listing may be published at. Below the deal fee the " +
       "landlord nets nothing, so the deal can never pay out. Enforced in " +
-      "firestore.rules — lower it to test with small charges.",
+      "firestore.rules - lower it to test with small charges.",
   },
 ];
 
@@ -209,7 +209,7 @@ export default function PricingPage() {
       setTimeout(() => setSaved(false), 4000);
     } catch (err) {
       console.error("pricing save failed", err);
-      setError("Save failed — check you have admin rights.");
+      setError("Save failed - check you have admin rights.");
     } finally {
       setSaving(false);
     }
@@ -230,7 +230,7 @@ export default function PricingPage() {
           Pricing
         </h1>
         <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-          Platform fees. Changes take effect immediately — no app release
+          Platform fees. Changes take effect immediately - no app release
           needed.
         </p>
       </div>
@@ -240,7 +240,7 @@ export default function PricingPage() {
         <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
         <div className="text-xs text-[rgb(var(--text-secondary))] space-y-1">
           <p>
-            The <strong>server</strong> charges these amounts — a tampered app
+            The <strong>server</strong> charges these amounts - a tampered app
             cannot change what a user is billed.
           </p>
           <p>
@@ -251,15 +251,15 @@ export default function PricingPage() {
         </div>
       </div>
 
-      {/* Verification — priced per role, first time vs every year after */}
+      {/* Verification - priced per role, first time vs every year after */}
       <div className="card space-y-4">
         <div>
           <p className="text-sm font-semibold text-[rgb(var(--text-primary))]">
             Verification
           </p>
           <p className="text-xs text-[rgb(var(--text-hint))]">
-            Renewal re-collects the role proof only — the NIN is permanent and
-            carried forward — so it is priced lower. The server decides which
+            Renewal re-collects the role proof only - the NIN is permanent and
+            carried forward - so it is priced lower. The server decides which
             applies from whether the user has ever been verified; it is not
             something the app can claim.
           </p>
@@ -339,7 +339,7 @@ export default function PricingPage() {
         ))}
       </div>
 
-      {/* Inspection split — deliberately not editable yet */}
+      {/* Inspection split - deliberately not editable yet */}
       <div className="card border-amber-500/30 bg-amber-500/5 flex items-start gap-3">
         <Lock size={18} className="text-amber-500 shrink-0 mt-0.5" />
         <div className="text-xs text-[rgb(var(--text-secondary))]">

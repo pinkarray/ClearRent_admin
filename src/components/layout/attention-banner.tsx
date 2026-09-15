@@ -37,11 +37,11 @@ export function AttentionBanner() {
   // Landlord rent-review / rent-change requests awaiting an admin decision.
   const [pendingRentReviews, setPendingRentReviews] = useState(0);
   // Open cross-domain admin alerts (disputes, agreement issues, identity
-  // changes, …) — the unified feed on /dashboard/alerts.
+  // changes, …) - the unified feed on /dashboard/alerts.
   const [openAlerts, setOpenAlerts] = useState(0);
 
   // Pending building ownership docs. A unit inside a building carries
-  // `inherited`, never `pending` — the doc awaiting review sits on the BUILDING.
+  // `inherited`, never `pending` - the doc awaiting review sits on the BUILDING.
   // Counting only properties made every grouped-unit listing invisible here.
   const [pendingBuildingDocs, setPendingBuildingDocs] = useState(0);
 
@@ -106,7 +106,7 @@ export function AttentionBanner() {
       where("status", "==", "open")
     );
     const unsub = onSnapshot(q, (snap) => {
-      // Only alerts with an open case belong in the banner — routine info
+      // Only alerts with an open case belong in the banner - routine info
       // (sign-ups, rent payments, the daily digest, finished inspections) lives
       // in the Alerts feed but shouldn't inflate "needs your attention".
       // Severity alone won't do: an inspection awaiting approval is `info`.

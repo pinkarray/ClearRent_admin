@@ -26,7 +26,7 @@ export async function fetchUserContact(
   }
 }
 
-/** Normalize a (Nigerian) phone to wa.me digits — E.164 without the '+'. */
+/** Normalize a (Nigerian) phone to wa.me digits - E.164 without the '+'. */
 export function toWhatsApp(phone?: string): string | null {
   if (!phone) return null;
   let digits = phone.replace(/\D/g, "");

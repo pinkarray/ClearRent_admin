@@ -507,7 +507,7 @@ function DocumentViewerPanel({
   };
 
   // Build document list based on account type. Values are Storage PATHS now,
-  // not URLs — resolved to bytes at view time via openDoc.
+  // not URLs - resolved to bytes at view time via openDoc.
   const documents: { label: string; path?: string }[] = [];
   documents.push({ label: "NIN / Government ID", path: v.ninUrl });
 

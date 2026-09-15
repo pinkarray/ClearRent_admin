@@ -54,7 +54,7 @@ function toDate(v: unknown): Date | null {
 }
 
 // Icon + landing route per alert type. A null route means there's no dedicated
-// page to act on it — the admin just reviews + resolves it here.
+// page to act on it - the admin just reviews + resolves it here.
 // Alerts about a stalled move-out, where the useful action is chasing a party
 // rather than acknowledging the alert.
 const HANDOVER_ALERTS = new Set([
@@ -90,7 +90,7 @@ const TYPE_META: Record<
     icon: HandCoins,
     route: () => "/dashboard/rent-payouts",
   },
-  // Nobody ever answered "did it arrive?". Not a dispute — but after 10 days
+  // Nobody ever answered "did it arrive?". Not a dispute - but after 10 days
   // of silence the transfer is worth checking, because an unanswered payout
   // and a failed one look identical from here.
   payout_unconfirmed: {
@@ -111,8 +111,8 @@ const TYPE_META: Record<
     route: () => "/dashboard/rent-attention",
   },
   // A tenant contradicting a landlord's "terms only" declaration. Same
-  // destination as agreement_disputed — the flag sets agreementStatus to
-  // 'disputed', so that is exactly where the tenancy surfaces — but it needs
+  // destination as agreement_disputed - the flag sets agreementStatus to
+  // 'disputed', so that is exactly where the tenancy surfaces - but it needs
   // its own entry or the most serious alert the platform can raise renders
   // with a generic bell and no way to click through to it.
   agreement_rent_mismatch: {
@@ -122,7 +122,7 @@ const TYPE_META: Record<
   rental_end_contested: { icon: DoorOpen, route: () => null },
   // The tenant says the caution deposit never reached them. Distinct from
   // contesting the tenancy END: this one is about money, and the unit stays
-  // off the market until it resolves — the silence sweep will not close a
+  // off the market until it resolves - the silence sweep will not close a
   // contested handover, so nothing here times out on its own.
   handover_settlement_contested: { icon: DoorOpen, route: () => null },
 
@@ -132,14 +132,14 @@ const TYPE_META: Record<
     icon: UserPlus,
     route: (a) => (a.targetId ? `/dashboard/users/${a.targetId}` : "/dashboard/users"),
   },
-  // The user page shows the verification state but cannot decide it — Approve /
+  // The user page shows the verification state but cannot decide it - Approve /
   // Reject live only on Verifications, which opens on its pending queue.
   verification_submitted: {
     icon: ShieldCheck,
     route: () => "/dashboard/verifications",
   },
   // A listing that says a document is pending review with no document behind
-  // it. The properties page holds the only two actions — see the file, or
+  // it. The properties page holds the only two actions - see the file, or
   // reject and ask the landlord for it.
   property_doc_missing: {
     icon: FileWarning,
@@ -209,11 +209,11 @@ export default function AlertsPage() {
     [items]
   );
 
-  // Only routine info can be cleared in bulk — see isRoutineInfo. Anything with
+  // Only routine info can be cleared in bulk - see isRoutineInfo. Anything with
   // an open case is left for a human, however quiet its severity.
   const routine = useMemo(() => items.filter(isRoutineInfo), [items]);
 
-  // `verification_submitted` has no Dismiss — the review on the Verifications
+  // `verification_submitted` has no Dismiss - the review on the Verifications
   // page closes it. But that page only offers Approve/Reject while a user is
   // still `pending`, so an alert whose review already happened can be cleared
   // by nobody: not the feed, not the page. That is every alert raised before
@@ -240,7 +240,7 @@ export default function AlertsPage() {
         reviewTargets.map(async (uid) => {
           try {
             const snap = await getDoc(doc(db, "users", uid));
-            // A deleted user is settled too — nobody can ever review them.
+            // A deleted user is settled too - nobody can ever review them.
             const status = snap.exists()
               ? String(snap.data().verificationStatus ?? "none")
               : "deleted";
@@ -263,7 +263,7 @@ export default function AlertsPage() {
 
   // A stalled handover is the one alert where dismissing achieves nothing: the
   // property stays off the market and the two parties are still disagreeing.
-  // This is the lever — an on-demand push to whichever side can unblock it.
+  // This is the lever - an on-demand push to whichever side can unblock it.
   async function nudgeHandover(item: AdminAlert, target: "landlord" | "tenant") {
     if (!canWrite || !item.targetId) return;
     const note = window.prompt(
@@ -376,7 +376,7 @@ export default function AlertsPage() {
             Alerts
           </h1>
           <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-            Live feed of things needing attention across the app — disputes, rent
+            Live feed of things needing attention across the app - disputes, rent
             changes, agreement issues, identity changes and more.
             {criticalCount > 0 && (
               <span className="ml-1 font-medium text-red-500">
@@ -410,7 +410,7 @@ export default function AlertsPage() {
         <div className="card text-center py-16">
           <Bell size={36} className="mx-auto text-[rgb(var(--text-hint))]" />
           <p className="mt-3 text-sm text-[rgb(var(--text-secondary))]">
-            All clear — no open alerts.
+            All clear - no open alerts.
           </p>
         </div>
       ) : (
@@ -469,16 +469,16 @@ export default function AlertsPage() {
                       )}
                       {settled ? (
                         <p className="text-[11px] text-[rgb(var(--text-hint))] mt-1 italic">
-                          Already reviewed — {decided}. Safe to dismiss.
+                          Already reviewed - {decided}. Safe to dismiss.
                         </p>
                       ) : resolvePage ? (
                         <p className="text-[11px] text-[rgb(var(--text-hint))] mt-1 italic">
-                          Resolve this from {resolvePage} — it clears here
+                          Resolve this from {resolvePage} - it clears here
                           automatically.
                         </p>
                       ) : openWork ? (
                         <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 italic">
-                          Still open — dismissing this acknowledges it, it
+                          Still open - dismissing this acknowledges it, it
                           doesn&apos;t resolve it.
                         </p>
                       ) : null}

@@ -15,7 +15,7 @@ import type { LucideIcon } from "lucide-react";
 // ─── Collusion analytics ─────────────────────────────────────────────────────
 // Consumes the Phase-3 capture (handlerId/handlerType on inspections) to group
 // inspections by the tenant↔handler PAIR and surface patterns that look like
-// off-platform dealing or refund farming. Heuristic + advisory — a flag is a
+// off-platform dealing or refund farming. Heuristic + advisory - a flag is a
 // prompt to look, not proof. Everything is derived from raw signals already on
 // the inspection docs (arrival flags, met, paymentStatus) joined to
 // active_rentals (did the tenant actually rent the property they inspected).
@@ -281,7 +281,7 @@ export default function CollusionPage() {
           </h1>
           <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
             Tenant↔handler pairs that meet repeatedly but never rent, or farm
-            refunds. Advisory — a flag is a prompt to look, not proof.
+            refunds. Advisory - a flag is a prompt to look, not proof.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -329,12 +329,12 @@ export default function CollusionPage() {
         <Info size={16} className="text-[rgb(var(--brand))] shrink-0 mt-0.5" />
         <div className="text-xs text-[rgb(var(--text-secondary))] space-y-1">
           <p>
-            <b>Met, no rental</b> — the pair confirmed a meeting on a property the
+            <b>Met, no rental</b> - the pair confirmed a meeting on a property the
             tenant never rented on ClearRent. Repeated, this suggests they connect
             here then transact off-platform.
           </p>
           <p>
-            <b>Handler no-show refunds</b> — the tenant marked they attended but the
+            <b>Handler no-show refunds</b> - the tenant marked they attended but the
             handler didn&apos;t confirm, triggering a refund. Repeated for one pair,
             this is the exact signal a colluding tenant+handler can forge.
           </p>
@@ -547,7 +547,7 @@ function PairCard({
                           day: "numeric",
                           year: "numeric",
                         })
-                      : "—"}
+                      : "-"}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">

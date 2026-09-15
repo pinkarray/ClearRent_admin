@@ -2,7 +2,7 @@
 
 // Deleted-account registry.
 //
-// Financial records outlive the account that created them — a rental interest
+// Financial records outlive the account that created them - a rental interest
 // where the tenant paid and then deleted their account keeps its `tenantId` and
 // its denormalized `tenantName` forever. Screens that render those names had no
 // way to tell a live party from a departed one, so a queue like Rent Attention
@@ -31,14 +31,14 @@ export interface DeletedAccount {
   /** Name at deletion time. Null when it could not be recovered by backfill. */
   fullName: string | null;
   accountType: string | null;
-  /** Null for backfilled rows — the real deletion time is unrecoverable. */
+  /** Null for backfilled rows - the real deletion time is unrecoverable. */
   deletedAt: Date | null;
 }
 
 interface DeletedAccountsContextType {
   /** The tombstone for `uid`, or null if the account is live (or uid is empty). */
   lookup: (uid: string | null | undefined) => DeletedAccount | null;
-  /** False until the registry has loaded — avoids flashing "deleted" on every row. */
+  /** False until the registry has loaded - avoids flashing "deleted" on every row. */
   ready: boolean;
 }
 
@@ -69,7 +69,7 @@ export function DeletedAccountsProvider({ children }: { children: ReactNode }) {
         setReady(true);
       },
       // A read failure must not make live accounts look deleted, so we stay
-      // empty and mark ready — screens fall back to the denormalized name.
+      // empty and mark ready - screens fall back to the denormalized name.
       () => setReady(true)
     );
     return unsub;

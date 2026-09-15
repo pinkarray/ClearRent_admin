@@ -103,7 +103,7 @@ export default function AnnouncementsPage() {
             Announcements
           </h1>
           <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-            Broadcast messages to users — shown in their notification feed on mobile.
+            Broadcast messages to users - shown in their notification feed on mobile.
           </p>
         </div>
         {canWrite && (
@@ -353,7 +353,7 @@ function AnnouncementComposer({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          {/* Body — scrollable */}
+          {/* Body - scrollable */}
           <div className="overflow-y-auto flex-1 p-6 space-y-5">
 
             {/* Type selector */}

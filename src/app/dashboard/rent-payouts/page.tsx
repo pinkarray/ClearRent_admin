@@ -162,7 +162,7 @@ export default function RentPayoutsPage() {
       base.forEach(async (payout) => {
         try {
           // Load landlord bank (C1: locked private/bank subcollection, with
-          // legacy fallback — see src/lib/bank.ts). Phone still comes from the
+          // legacy fallback - see src/lib/bank.ts). Phone still comes from the
           // user doc.
           let landlordBank: BankDetails | undefined;
           let landlordPhone: string | undefined;
@@ -720,7 +720,7 @@ function RentPayoutDetailPanel({
           {/* Landlord section */}
           <div className="space-y-2">
             <h4 className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
-              Landlord — {payout.landlordPayoutStatus === "paid" ? "✅ Paid" : "⏳ Pending"}
+              Landlord - {payout.landlordPayoutStatus === "paid" ? "✅ Paid" : "⏳ Pending"}
             </h4>
             <DetailRow icon={User} label="Name" value={payout.landlordName} />
             {payout.landlordPhone && (
@@ -766,7 +766,7 @@ function RentPayoutDetailPanel({
           {payout.agentId && payout.agentPayout > 0 && (
             <div className="space-y-2">
               <h4 className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
-                Agent — {payout.agentPayoutStatus === "paid" ? "✅ Paid" : "⏳ Pending"}
+                Agent - {payout.agentPayoutStatus === "paid" ? "✅ Paid" : "⏳ Pending"}
               </h4>
               <DetailRow icon={UserCheck} label="Name" value={payout.agentName || "Agent"} />
               {payout.agentPhone && (
@@ -831,8 +831,8 @@ function RentPayoutDetailPanel({
 
 /**
  * What happened AFTER we marked the payout sent. "Paid" is our side of the
- * story; this is the beneficiary's. Awaiting means they haven't answered — not
- * that anything is wrong — so it reads neutral, and only a live dispute is
+ * story; this is the beneficiary's. Awaiting means they haven't answered - not
+ * that anything is wrong - so it reads neutral, and only a live dispute is
  * styled as a problem.
  */
 function ReceiptBlock({
@@ -1022,7 +1022,7 @@ function DetailRow({ icon: Icon, label, value }: { icon: any; label: string; val
  *    the stored figures cannot all be true.
  *
  * A zero landlord payout is legal arithmetic but still unpayable, so it is
- * called out separately — the landlord is owed nothing and no transfer can be
+ * called out separately - the landlord is owed nothing and no transfer can be
  * made.
  */
 function BreakdownCheck({ payout }: { payout: RentPayout }) {
@@ -1044,7 +1044,7 @@ function BreakdownCheck({ payout }: { payout: RentPayout }) {
       </div>
       {negative && (
         <p className="text-xs text-[rgb(var(--text-secondary))]">
-          A payout is negative — the fees deducted exceed the rent of{" "}
+          A payout is negative - the fees deducted exceed the rent of{" "}
           {formatNaira(payout.rentAmount)}. Settle manually; do not transfer.
         </p>
       )}

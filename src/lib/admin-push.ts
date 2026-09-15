@@ -11,7 +11,7 @@ import app, { db } from "./firebase";
  * this registry is how the server knows where to send. See admin_push_ops.ts.
  *
  * Only `warning` and `critical` alerts push. Signups, inspection lifecycle and
- * rent payments are `info` — they stay in the feed and the daily digest rather
+ * rent payments are `info` - they stay in the feed and the daily digest rather
  * than interrupting someone.
  */
 
@@ -25,7 +25,7 @@ export type PushState =
 /**
  * Whether this browser can do web push at all.
  *
- * On iOS this is false in a normal Safari tab no matter the version — Apple
+ * On iOS this is false in a normal Safari tab no matter the version - Apple
  * only exposes push to a site installed to the Home Screen (iOS 16.4+). That is
  * not a bug to chase; it is why the UI prompts to install first.
  */
@@ -58,7 +58,7 @@ export function currentPermission(): PushState {
  * Asks for permission, mints an FCM token, and records it against this admin.
  *
  * Returns null on success or a message to show. The permission prompt must be
- * triggered by a user gesture — browsers ignore it otherwise, and Safari
+ * triggered by a user gesture - browsers ignore it otherwise, and Safari
  * permanently denies a site that asks without one.
  */
 export async function enableAdminPush(uid: string): Promise<string | null> {

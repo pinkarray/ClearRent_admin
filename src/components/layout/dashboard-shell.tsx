@@ -87,7 +87,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 "flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500 text-[11px] font-medium",
                 collapsed ? "justify-center p-2" : "px-2.5 py-1.5"
               )}
-              title="Read-only access — you can view but not change anything"
+              title="Read-only access - you can view but not change anything"
             >
               <Eye size={13} className="shrink-0" />
               {!collapsed && <span>Read-only access</span>}
@@ -99,7 +99,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 py-4 px-3 overflow-y-auto">
           {NAV_GROUPS.map((group, gi) => (
             <div key={group.label ?? "top"} className={cn(gi > 0 && "mt-5")}>
-              {/* Collapsed, a heading has no room — a rule keeps the grouping
+              {/* Collapsed, a heading has no room - a rule keeps the grouping
                   legible without it. */}
               {group.label &&
                 (collapsed ? (

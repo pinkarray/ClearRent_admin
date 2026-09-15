@@ -2,7 +2,7 @@
  * Serves the FCM service worker at `/firebase-messaging-sw.js`.
  *
  * WHY A ROUTE AND NOT A FILE IN public/. The worker needs the Firebase config,
- * but a static file in public/ has no access to environment variables — the
+ * but a static file in public/ has no access to environment variables - the
  * usual workarounds are hardcoding the project (breaks on a project change) or
  * adding a build-time substitution step (a silent failure when it is skipped).
  * Generating it here keeps one source of truth for the config.
@@ -12,8 +12,8 @@
  * scope. Served from the root it controls the whole dashboard; moved into a
  * subdirectory it would silently stop receiving background messages.
  *
- * The values below are public client identifiers — the same ones already
- * shipped in the JS bundle — not secrets.
+ * The values below are public client identifiers - the same ones already
+ * shipped in the JS bundle - not secrets.
  */
 
 export const dynamic = "force-static";
@@ -80,7 +80,7 @@ self.addEventListener("notificationclick", (event) => {
       "Content-Type": "application/javascript; charset=utf-8",
       "Service-Worker-Allowed": "/",
       // The config changes only on redeploy, and a stale worker is worse than
-      // a re-fetch — browsers re-check the worker script on navigation anyway.
+      // a re-fetch - browsers re-check the worker script on navigation anyway.
       "Cache-Control": "public, max-age=0, must-revalidate",
     },
   });

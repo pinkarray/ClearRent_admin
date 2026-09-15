@@ -28,7 +28,7 @@ interface Payout {
   propertyAddress: string;
   propertyImage?: string;
 
-  // Handler — agent or self-handled landlord
+  // Handler - agent or self-handled landlord
   handlerType: "agent" | "landlord";
   handlerId: string;
   handlerName: string;

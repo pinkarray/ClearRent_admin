@@ -84,11 +84,11 @@ const CATEGORY_CONFIG: Record<string, { icon: any; label: string; color: string 
   other:      { icon: HelpCircle,  label: "Other",       color: "text-[rgb(var(--text-hint))] bg-[rgb(var(--background))]" },
 };
 
-// A fix awaiting confirmation past this many days is going stale — the CF
+// A fix awaiting confirmation past this many days is going stale - the CF
 // sweep (issuePendingConfirmationReminders) escalates on the same schedule.
 const STALE_PENDING_DAYS = 7;
 
-// Mirrors BULK_MAX in the nudgeIssuesBulk CF — keep the two in step so the UI
+// Mirrors BULK_MAX in the nudgeIssuesBulk CF - keep the two in step so the UI
 // never offers a selection the server will reject outright.
 const BULK_MAX = 50;
 
@@ -179,7 +179,7 @@ export default function IssuesPage() {
   const pendingCount    = issues.filter((i) => i.status === "pending_confirmation").length;
   const resolvedCount   = issues.filter((i) => i.status === "resolved").length;
   const highPriorityOpen = issues.filter((i) => i.status === "open" && i.priority === "high").length;
-  // Fixes the tenant never signed off on — the quiet failure mode: not open,
+  // Fixes the tenant never signed off on - the quiet failure mode: not open,
   // not resolved, nobody chasing.
   const stalePending = useMemo(
     () => issues.filter((i) => (pendingDays(i) ?? 0) >= STALE_PENDING_DAYS),
@@ -214,7 +214,7 @@ export default function IssuesPage() {
     [filtered]
   );
 
-  // Drop the selection whenever the visible set changes — carrying hidden
+  // Drop the selection whenever the visible set changes - carrying hidden
   // picks across a filter change is how you nudge someone you never saw.
   useEffect(() => {
     setChecked(new Set());
@@ -274,7 +274,7 @@ export default function IssuesPage() {
               {highPriorityOpen} high-priority issue{highPriorityOpen !== 1 ? "s" : ""} open
             </p>
             <p className="text-xs text-[rgb(var(--text-secondary))] mt-0.5">
-              Tap to filter — these are marked as urgent by tenants.
+              Tap to filter - these are marked as urgent by tenants.
             </p>
           </div>
           <ArrowUpRight size={16} className="text-red-500 shrink-0 mt-1" />
@@ -717,7 +717,7 @@ function IssueDetailPanel({ issue, onClose }: { issue: Issue; onClose: () => voi
 // Confirm-then-send: this fires real pushes at real people, so the count and
 // the recipients are spelled out before anything leaves. The server re-checks
 // each issue and skips anyone nudged in the last day, so the "will send" count
-// here is an upper bound — the result summary is the truth.
+// here is an upper bound - the result summary is the truth.
 
 function BulkNudgeModal({
   issues,
@@ -795,7 +795,7 @@ function BulkNudgeModal({
               </p>
               {result.skipped > 0 && (
                 <p className="text-xs text-[rgb(var(--text-hint))]">
-                  {result.skipped} skipped — already nudged in the last day, or
+                  {result.skipped} skipped - already nudged in the last day, or
                   confirmed since you loaded this page.
                 </p>
               )}
@@ -807,7 +807,7 @@ function BulkNudgeModal({
             <>
               <p className="text-sm text-[rgb(var(--text-secondary))]">
                 {landlords > 0 && tenants > 0
-                  ? "Each person gets the reminder that fits their issue — landlords to act on a report, tenants to confirm or dispute a fix."
+                  ? "Each person gets the reminder that fits their issue - landlords to act on a report, tenants to confirm or dispute a fix."
                   : landlords > 0
                     ? "Each landlord gets a push asking them to act on their tenant's report."
                     : "Each tenant gets a push asking them to confirm or dispute the fix on their property."}{" "}
@@ -869,7 +869,7 @@ function BulkNudgeModal({
 function waitingOn(status: string): "landlord" | "tenant" | null {
   if (status === "open" || status === "in_progress") return "landlord";
   if (status === "pending_confirmation") return "tenant";
-  return null; // resolved — nobody left to chase
+  return null; // resolved - nobody left to chase
 }
 
 function NudgeSection({ issue }: { issue: Issue }) {
@@ -917,7 +917,7 @@ function NudgeSection({ issue }: { issue: Issue }) {
 
       {target === null ? (
         <p className="text-xs text-[rgb(var(--text-hint))]">
-          This issue is resolved — there&apos;s no one left to chase.
+          This issue is resolved - there&apos;s no one left to chase.
         </p>
       ) : !canWrite ? (
         <p className="text-xs text-[rgb(var(--text-hint))]">
@@ -930,7 +930,7 @@ function NudgeSection({ issue }: { issue: Issue }) {
               ? "Sends the landlord a push + in-app alert linking straight to this issue."
               : `The landlord marked this fixed${
                   waiting !== null ? ` ${waiting} days ago` : ""
-                } — remind the tenant to confirm or dispute it. Automatic reminders go out at 3 and 7 days.`}
+                } - remind the tenant to confirm or dispute it. Automatic reminders go out at 3 and 7 days.`}
           </p>
           <textarea
             value={note}

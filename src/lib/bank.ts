@@ -37,7 +37,7 @@ export async function fetchBankDetails(
     // fall through to the legacy location
   }
 
-  // Legacy fallback — records not yet migrated off the user doc.
+  // Legacy fallback - records not yet migrated off the user doc.
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {
@@ -49,7 +49,7 @@ export async function fetchBankDetails(
       };
     }
   } catch {
-    // ignore — caller treats null as "no bank on file"
+    // ignore - caller treats null as "no bank on file"
   }
 
   return null;

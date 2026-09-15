@@ -50,7 +50,7 @@ interface PropertyRow {
   id: string;
   title: string;
   // Exact street address lives in the gated private/location subdoc (Phase 2b);
-  // this overview shows area-level (city/state) — `address` is a legacy
+  // this overview shows area-level (city/state) - `address` is a legacy
   // fallback for un-migrated docs.
   address: string;
   city: string;
@@ -130,7 +130,7 @@ function formatNaira(amount: number) {
 }
 
 function formatDate(d?: Date) {
-  if (!d) return "—";
+  if (!d) return "-";
   return d.toLocaleDateString("en-NG", { month: "short", day: "numeric", year: "numeric" });
 }
 
@@ -272,7 +272,7 @@ async function loadGraph(uid: string): Promise<UserGraph> {
         id: d.id,
         type: str(x.type) || "payment",
         amount: num(x.amount),
-        status: str(x.status) || "—",
+        status: str(x.status) || "-",
         createdAt: parseTimestamp(x.createdAt),
       };
     })
@@ -447,8 +447,8 @@ export default function UserProfilePage() {
               <VerificationPill status={user.verificationStatus} />
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-[rgb(var(--text-secondary))]">
-              <span className="flex items-center gap-1.5"><Mail size={13} />{user.email || "—"}</span>
-              <span className="flex items-center gap-1.5"><Phone size={13} />{user.phone || "—"}</span>
+              <span className="flex items-center gap-1.5"><Mail size={13} />{user.email || "-"}</span>
+              <span className="flex items-center gap-1.5"><Phone size={13} />{user.phone || "-"}</span>
               {user.baseLocation && (
                 <span className="flex items-center gap-1.5"><MapPin size={13} />{user.baseLocation}</span>
               )}
@@ -754,7 +754,7 @@ function PersonLink({
   router: ReturnType<typeof useRouter>;
   self?: string;
 }) {
-  if (!uid) return <span className="text-[rgb(var(--text-hint))]">—</span>;
+  if (!uid) return <span className="text-[rgb(var(--text-hint))]">-</span>;
   const label = name || "Unknown";
   if (self && uid === self) {
     return <span className="font-medium text-[rgb(var(--text-secondary))]">{label} (this user)</span>;

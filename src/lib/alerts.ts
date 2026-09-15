@@ -1,4 +1,4 @@
-// Alert taxonomy — shared by the Alerts feed and the attention banner.
+// Alert taxonomy - shared by the Alerts feed and the attention banner.
 //
 // Severity is NOT a proxy for "is there work here". Several `info` alerts carry
 // outstanding work (an inspection awaiting the handler's approval, a rental
@@ -26,7 +26,7 @@ export const RESOLVE_ON_PAGE: Record<string, string> = {
   inspection_dispute: "Inspection Reviews",
   rent_change_request: "Rent Reviews",
   // resolvePayoutDispute closes this alert itself once evidence is attached,
-  // so it must not be dismissable from the feed — dismissing would hide money
+  // so it must not be dismissable from the feed - dismissing would hide money
   // someone says they never received while the dispute is still open.
   payout_disputed: "Rent Payouts",
   // Approving or rejecting on the Verifications page closes this
@@ -43,18 +43,18 @@ export const RESOLVE_ON_PAGE: Record<string, string> = {
 
 // `inspection_lifecycle` is a single upserted doc per inspection that walks
 // through meta.state, re-opening on every transition. Only these two states owe
-// a handler decision — and neither re-opens on its own, because the approval
+// a handler decision - and neither re-opens on its own, because the approval
 // *is* the next transition. The rest (requested_unpaid waits on the tenant;
 // approved/declined/cancelled/completed are just the record) are safe to clear:
 // if anything more happens, the upsert brings the alert back.
 const LIFECYCLE_PENDING = new Set(["requested", "paid"]);
 
-// Types that carry open work but have no auto-close — a human decides when
+// Types that carry open work but have no auto-close - a human decides when
 // they're done. They keep a manual Dismiss (nothing else can ever close them)
 // but stay out of "Dismiss all", and the card says so.
 const PENDING_WORK = new Set([
-  // Nothing closes this automatically — the beneficiary answering later does
-  // not clear the alert — so an admin checks the transfer and dismisses it.
+  // Nothing closes this automatically - the beneficiary answering later does
+  // not clear the alert - so an admin checks the transfer and dismisses it.
   "payout_unconfirmed",
   "rental_interest",
   "agreement_ready",
@@ -74,7 +74,7 @@ export function hasOpenWork(a: AdminAlert): boolean {
 }
 
 /**
- * Routine info — nothing to act on, so it's safe to clear in bulk. The
+ * Routine info - nothing to act on, so it's safe to clear in bulk. The
  * attention banner counts the exact inverse: everything that isn't this needs
  * a human, whatever its severity says.
  */

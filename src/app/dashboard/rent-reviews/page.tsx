@@ -237,7 +237,7 @@ function RentReviewCard({
   const isRaise = review.proposedRent > review.currentRent;
   const [loadingDoc, setLoadingDoc] = useState(false);
 
-  // The revised agreement is now a private Storage path — stream it through the
+  // The revised agreement is now a private Storage path - stream it through the
   // admin-token-gated route. Legacy Cloudinary docs are public http URLs.
   const openAgreement = async (urlOrPath: string) => {
     if (/^https?:\/\//i.test(urlOrPath)) {
@@ -370,7 +370,7 @@ function RentReviewCard({
           </button>
         )}
 
-        {/* Fairness context — live read of the property's issues / maintenance */}
+        {/* Fairness context - live read of the property's issues / maintenance */}
         <FairnessPanel propertyId={review.propertyId} />
 
         {/* Actions */}
@@ -400,7 +400,7 @@ function RentReviewCard({
 // ─── Fairness Panel (live read) ──────────────────────────────────────────────
 // Queries the property's issues + maintenance logs live when the card mounts,
 // so the admin sees the current maintenance picture next to the increase. No
-// snapshot is stored — this reflects state at review time (E-2).
+// snapshot is stored - this reflects state at review time (E-2).
 
 interface FairnessIssue {
   id: string;

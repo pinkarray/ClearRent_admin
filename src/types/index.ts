@@ -35,7 +35,7 @@ export interface ClearRentUser {
   allowsCalls?: boolean;
 
   // Activity heartbeat written by the user's own device. Read as "active
-  // recently", not as authoritative presence — a force-kill just stops it
+  // recently", not as authoritative presence - a force-kill just stops it
   // advancing. Last *login* is not here: it comes from Firebase Auth via
   // /api/user-activity, where a modified client can't forge it.
   lastSeenAt?: Date;

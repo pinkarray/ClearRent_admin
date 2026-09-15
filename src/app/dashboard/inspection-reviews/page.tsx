@@ -104,12 +104,12 @@ function formatNaira(amount: number) {
   return `₦${(amount ?? 0).toLocaleString("en-NG")}`;
 }
 
-// ClearRent's flat, non-refundable cut of the inspection fee — retained on an
+// ClearRent's flat, non-refundable cut of the inspection fee - retained on an
 // ambiguous outcome. A confirmed handler no-show still refunds the full fee.
 const CLEARRENT_CUT = 3000;
 
 function formatDate(d: Date | null) {
-  if (!d) return "—";
+  if (!d) return "-";
   return d.toLocaleDateString("en-NG", {
     weekday: "short",
     month: "short",
@@ -339,7 +339,7 @@ export default function InspectionReviewsPage() {
             Inspection Reviews
           </h1>
           <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-            Inspections with no clear outcome, plus tenant-filed disputes —
+            Inspections with no clear outcome, plus tenant-filed disputes -
             refund, complete, or dismiss.
           </p>
         </div>
@@ -376,7 +376,7 @@ export default function InspectionReviewsPage() {
             className="mx-auto text-[rgb(var(--text-hint))]"
           />
           <p className="mt-3 text-sm text-[rgb(var(--text-secondary))]">
-            Nothing to review — no inspections awaiting an outcome or disputed.
+            Nothing to review - no inspections awaiting an outcome or disputed.
           </p>
         </div>
       ) : (
@@ -561,7 +561,7 @@ export default function InspectionReviewsPage() {
               <p className="text-xs text-[rgb(var(--text-hint))]">
                 Full fee for a confirmed handler no-show. For an unclear outcome,
                 use &quot;Minus ₦{CLEARRENT_CUT.toLocaleString("en-NG")} cut&quot;
-                — ClearRent keeps its {formatNaira(CLEARRENT_CUT)} share.
+                - ClearRent keeps its {formatNaira(CLEARRENT_CUT)} share.
               </p>
             </div>
             <div className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--background))] p-3 space-y-1.5">
@@ -582,7 +582,7 @@ export default function InspectionReviewsPage() {
                     </p>
                   )}
                   <p className="text-sm text-[rgb(var(--text-secondary))]">
-                    {refundBank.bankName || "Bank —"}
+                    {refundBank.bankName || "Bank -"}
                     {refundBank.accountNumber
                       ? ` · ${refundBank.accountNumber}`
                       : ""}
@@ -590,7 +590,7 @@ export default function InspectionReviewsPage() {
                 </>
               ) : (
                 <p className="text-xs text-amber-500">
-                  No bank details on file — the tenant must add them before you
+                  No bank details on file - the tenant must add them before you
                   can pay.
                 </p>
               )}
@@ -756,7 +756,7 @@ export default function InspectionReviewsPage() {
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   rows={3}
-                  placeholder="e.g. We're reviewing your report — please reply with any photos or details."
+                  placeholder="e.g. We're reviewing your report - please reply with any photos or details."
                   className="w-full rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--background))] px-3 py-2 text-sm focus:border-[rgb(var(--brand))] focus:outline-none"
                 />
                 <div className="flex justify-end">

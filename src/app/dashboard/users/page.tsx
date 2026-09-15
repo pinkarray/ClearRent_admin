@@ -38,7 +38,7 @@ export default function UsersPage() {
   }, []);
 
   // Last login comes from Firebase Auth (server-side), not from a Firestore
-  // field — it's recorded on every real sign-in, works for accounts that
+  // field - it's recorded on every real sign-in, works for accounts that
   // predate any tracking we added, and can't be forged by a client.
   useEffect(() => {
     if (users.length === 0) return;
@@ -146,9 +146,9 @@ export default function UsersPage() {
                   <td className="px-5 py-4"><div className="flex items-center gap-3"><UserAvatar user={user} size={36} /><div><p className="text-sm font-medium text-[rgb(var(--text-primary))]">{user.fullName}</p><p className="text-xs text-[rgb(var(--text-hint))]">{user.email}</p></div></div></td>
                   <td className="px-5 py-4"><TypeBadge type={user.accountType} /></td>
                   <td className="px-5 py-4"><StatusBadge status={user.verificationStatus || "none"} /></td>
-                  <td className="px-5 py-4 text-sm text-[rgb(var(--text-secondary))]">{user.phone || "—"}</td>
+                  <td className="px-5 py-4 text-sm text-[rgb(var(--text-secondary))]">{user.phone || "-"}</td>
                   <td className="px-5 py-4"><ActivityCell lastSeenAt={user.lastSeenAt} lastSignInTime={authActivity[user.uid]?.lastSignInTime} /></td>
-                  <td className="px-5 py-4 text-sm text-[rgb(var(--text-hint))]">{user.createdAt ? timeAgo(user.createdAt) : "—"}</td>
+                  <td className="px-5 py-4 text-sm text-[rgb(var(--text-hint))]">{user.createdAt ? timeAgo(user.createdAt) : "-"}</td>
                   <td className="px-3"><MoreVertical size={16} className="text-[rgb(var(--text-hint))]" /></td>
                 </tr>
               ))}</tbody>
@@ -174,10 +174,10 @@ const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
 
 /**
  * Two different signals, deliberately shown together:
- *  - "Active now" / "Seen 2h ago" — the device heartbeat (`lastSeenAt`). Absent
+ *  - "Active now" / "Seen 2h ago" - the device heartbeat (`lastSeenAt`). Absent
  *    for anyone who hasn't opened a build that writes it, so absence means
  *    "unknown", never "offline".
- *  - "Last login" — Firebase Auth's own record, available for every account.
+ *  - "Last login" - Firebase Auth's own record, available for every account.
  */
 function ActivityCell({
   lastSeenAt,
@@ -202,7 +202,7 @@ function ActivityCell({
           Seen {timeAgo(lastSeenAt)}
         </span>
       ) : (
-        <span className="text-sm text-[rgb(var(--text-hint))]">—</span>
+        <span className="text-sm text-[rgb(var(--text-hint))]">-</span>
       )}
       <span className="text-xs text-[rgb(var(--text-hint))]">
         {lastSignInTime
@@ -251,7 +251,7 @@ function UserDetailPanel({ user, onClose }: { user: ClearRentUser; onClose: () =
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[rgb(var(--brand))] text-white text-sm font-medium hover:opacity-90 transition-opacity"
           >
             <Network size={15} />
-            View full profile — properties, tenancies, inspections
+            View full profile - properties, tenancies, inspections
           </button>
           <div className="space-y-3">
             <h4 className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">Contact</h4>

@@ -16,7 +16,7 @@
 //   node scripts/set-role.mjs someone@clearrent.ng none
 //
 // Reads FIREBASE_SERVICE_ACCOUNT (base64 service-account JSON) from the
-// environment or from .env.local at the repo root — the same variable the
+// environment or from .env.local at the repo root - the same variable the
 // app uses in src/lib/firebase-admin.ts.
 
 import { readFileSync } from "node:fs";
@@ -43,7 +43,7 @@ function loadServiceAccount() {
         }
       }
     } catch {
-      /* no .env.local — fall through to the error below */
+      /* no .env.local - fall through to the error below */
     }
   }
   if (!raw) {

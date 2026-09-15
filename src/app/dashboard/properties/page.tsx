@@ -109,7 +109,7 @@ interface Property {
   ownershipDocType?: string;
   ownershipDocStatus: string; // none | pending | verified | rejected | inherited
   ownershipDocRejectionReason?: string;
-  // Building grouping — when set, the ownership doc lives on the building and
+  // Building grouping - when set, the ownership doc lives on the building and
   // is shared across all its units.
   buildingId?: string;
   // Which unit this is inside that building. Without it two units of the same
@@ -117,8 +117,8 @@ interface Property {
   unitLabel?: string;
   floor?: string;
   // Grouped units only: what the tenant gets exclusively. Sharing is a fact
-  // about the arrangement, not the type — a self contain in a compound can
-  // still share a toilet — so these are set for any unit, and absent when the
+  // about the arrangement, not the type - a self contain in a compound can
+  // still share a toilet - so these are set for any unit, and absent when the
   // whole property is let.
   bathroomAccess?: string;
   toiletAccess?: string;
@@ -197,7 +197,7 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// Labels for BuildingModel.structure — what the whole thing is, as opposed to
+// Labels for BuildingModel.structure - what the whole thing is, as opposed to
 // the unit's propertyType, which is only what the tenant gets.
 const STRUCTURE_LABELS: Record<string, string> = {
   duplex: "Duplex",
@@ -218,14 +218,14 @@ const FLOOR_LABELS: Record<string, string> = {
   "4": "4th floor",
 };
 
-// "Ade's Compound (Duplex)" — buildings created before `structure` existed have
+// "Ade's Compound (Duplex)" - buildings created before `structure` existed have
 // none, so the parenthetical is dropped rather than shown empty.
 function buildingContext(b: Building) {
   const s = b.structure ? STRUCTURE_LABELS[b.structure] : undefined;
   return s ? `${b.name} (${s})` : b.name;
 }
 
-// "Room 2 · 1st floor" — which unit inside the building this listing is.
+// "Room 2 · 1st floor" - which unit inside the building this listing is.
 function unitDescriptor(p: Property) {
   const parts: string[] = [];
   if (p.unitLabel) parts.push(p.unitLabel);
@@ -235,14 +235,14 @@ function unitDescriptor(p: Property) {
 
 // ClearRent operates in Lagos today, but nothing blocks a listing elsewhere:
 // admin review IS the gate. A listing born isVerified:false / isAvailable:false
-// cannot be browsed or booked until someone here approves it — so this flag has
+// cannot be browsed or booked until someone here approves it - so this flag has
 // to be visible at the moment of review, or an out-of-state listing gets
 // rubber-stamped through with everything else.
 //
 // The landlord cannot type this value: it is derived from their map pin.
 // Case-insensitive because it comes from a geocoder that returns both cases.
 // Types that are ONE space. Their spec is which facilities the tenant gets
-// exclusively — a bedroom count would be a tautology, and showing one made a
+// exclusively - a bedroom count would be a tautology, and showing one made a
 // shared room read identically to a self-contained flat.
 function isSingleSpace(type: string) {
   return (
@@ -384,7 +384,7 @@ export default function PropertiesPage() {
       if (regionFilter === "outside" && !isOutsideLagos(p)) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        // Exact street address isn't on the list doc (gated subdoc) — match on
+        // Exact street address isn't on the list doc (gated subdoc) - match on
         // the area-level fields + title + landlord.
         return (
           p.title.toLowerCase().includes(q) ||
@@ -430,7 +430,7 @@ export default function PropertiesPage() {
   const rejectDoc = (property: Property, reason: string) =>
     reviewDoc(property, "reject", reason);
 
-  // Publish a grouped unit whose building C of O is already verified — ownership
+  // Publish a grouped unit whose building C of O is already verified - ownership
   // is settled, this is the per-unit listing approval.
   const publishUnit = async (property: Property) => {
     await reviewDoc(property, "publish");
@@ -469,7 +469,7 @@ export default function PropertiesPage() {
               {pendingDocCount} ownership document{pendingDocCount !== 1 ? "s" : ""} awaiting review
             </p>
             <p className="text-xs text-[rgb(var(--text-secondary))] mt-0.5">
-              Tap to filter — verify or reject each landlord's C of O / deed before their property goes live.
+              Tap to filter - verify or reject each landlord's C of O / deed before their property goes live.
             </p>
           </div>
         </div>
@@ -526,7 +526,7 @@ export default function PropertiesPage() {
           <option value="none">No Doc Uploaded</option>
         </select>
         {/* Where we operate. Nothing blocks an out-of-state listing at write
-            time — this queue is the gate, so it has to be findable. */}
+            time - this queue is the gate, so it has to be findable. */}
         <select
           value={regionFilter}
           onChange={(e) => setRegionFilter(e.target.value as RegionFilter)}
@@ -652,7 +652,7 @@ function PropertyCard({
           <p className="text-sm font-semibold text-[rgb(var(--text-primary))] truncate">
             {property.title}
           </p>
-          {/* Which unit, in which building — two units of the same shape in one
+          {/* Which unit, in which building - two units of the same shape in one
               compound are otherwise identical cards. */}
           {docInfo.building && (
             <div className="flex items-center gap-1 mt-0.5">
@@ -668,7 +668,7 @@ function PropertyCard({
             <MapPin size={11} className="text-[rgb(var(--text-hint))] shrink-0" />
             <p className="text-xs text-[rgb(var(--text-hint))] truncate">
               {/* Exact street address lives in the gated private/location
-                  subdoc — the list shows area-level only (fetched per-property
+                  subdoc - the list shows area-level only (fetched per-property
                   in the detail panel). */}
               {[property.city, property.state].filter(Boolean).join(", ")}
             </p>
@@ -730,7 +730,7 @@ function PropertyCard({
               // Opens the detail panel, which holds the document viewer and the
               // rejection-reason form. This was an empty handler, and because
               // the wrapper stops propagation it also blocked the card's own
-              // click — so the button did nothing at all.
+              // click - so the button did nothing at all.
               onClick={onView}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 text-xs font-semibold hover:bg-red-500/20 transition-colors"
             >
@@ -774,7 +774,7 @@ function PropertyDetailPanel({
   const [loadingDoc, setLoadingDoc] = useState(false);
 
   // The exact street address lives in the gated `properties/{id}/private/location`
-  // subdoc (reveal-on-approval, Phase 2b). Admin is entitled — fetch it for the
+  // subdoc (reveal-on-approval, Phase 2b). Admin is entitled - fetch it for the
   // detail view. Falls back to area-level while loading / if absent.
   const [exactAddress, setExactAddress] = useState<string | null>(null);
   useEffect(() => {
@@ -787,7 +787,7 @@ function PropertyDetailPanel({
         if (typeof addr === "string" && addr.length > 0) setExactAddress(addr);
       })
       .catch(() => {
-        /* not entitled / absent — leave area-level */
+        /* not entitled / absent - leave area-level */
       });
     return () => {
       active = false;
@@ -825,14 +825,14 @@ function PropertyDetailPanel({
 
   const isPendingDoc = docInfo.status === "pending";
   const grouped = !!docInfo.building;
-  // No document at all. Approving is impossible — there is nothing to approve —
+  // No document at all. Approving is impossible - there is nothing to approve -
   // but REJECTING is the only way to tell the landlord to upload one, and
   // without it these listings sat here with no action available to anyone.
   const isMissingDoc =
     !grouped && (docInfo.status === "none" || !docInfo.url);
 
   // A compound is LAND: one C of O can cover a duplex and a bungalow side by
-  // side. The landlord is never asked how many buildings are on it — the
+  // side. The landlord is never asked how many buildings are on it - the
   // number is DERIVED from the units, so it cannot disagree with what was
   // actually listed. Empty for any other structure, which IS one building.
   const compoundBuildings = useMemo(() => {
@@ -855,7 +855,7 @@ function PropertyDetailPanel({
     });
   }, [grouped, docInfo.building, siblings, property.buildingId]);
   // Grouped unit whose building C of O is already verified but which hasn't
-  // been published yet — ownership is settled, only per-unit approval remains.
+  // been published yet - ownership is settled, only per-unit approval remains.
   const needsPublish =
     grouped && docInfo.status === "verified" && !property.isAvailable;
 
@@ -929,7 +929,7 @@ function PropertyDetailPanel({
             <DetailRow icon={MapPin} label="City" value={`${property.city}, ${property.state}`} />
             {/* Says what the reviewer is actually deciding. The state is
                 derived from the landlord's map pin, not typed, so it is not a
-                typo — it is a real address outside where we operate. */}
+                typo - it is a real address outside where we operate. */}
             {isOutsideLagos(property) && (
               <div className="rounded-lg border border-[rgb(var(--warning))]/30 bg-[rgb(var(--warning))]/10 p-3 text-xs text-[rgb(var(--text-secondary))]">
                 <span className="font-medium text-[rgb(var(--text-primary))]">
@@ -953,7 +953,7 @@ function PropertyDetailPanel({
             {/* Counts and sharing are independent. Counts say what is present
                 and are real for anything but a single space; sharing says who
                 else uses it and is real for any grouped unit, whatever its
-                type — a self contain in a compound can still share a toilet. */}
+                type - a self contain in a compound can still share a toilet. */}
             {!(grouped && isSingleSpace(property.propertyType)) && (
               <>
                 <DetailRow icon={BedDouble} label="Bedrooms" value={`${property.bedrooms}`} />
@@ -1058,7 +1058,7 @@ function PropertyDetailPanel({
               // (Storage 403, dropped connection). That reached this panel as
               // an empty review saying nothing and offering nothing to press,
               // so a reviewer had no way to tell it from a landlord who never
-              // uploaded anything — and no way to act on either.
+              // uploaded anything - and no way to act on either.
               <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle size={14} className="text-amber-500 shrink-0" />
@@ -1070,7 +1070,7 @@ function PropertyDetailPanel({
                   {grouped
                     ? `No ownership document has been uploaded for ${docInfo.building!.name}, so there is nothing to review for any of its units.`
                     : docInfo.type
-                    ? `The landlord chose ${OWNERSHIP_DOC_LABELS[docInfo.type] ?? "a document"}, but the file itself never reached us. There is nothing to approve — reject the listing to ask them to upload it again from Edit property.`
+                    ? `The landlord chose ${OWNERSHIP_DOC_LABELS[docInfo.type] ?? "a document"}, but the file itself never reached us. There is nothing to approve - reject the listing to ask them to upload it again from Edit property.`
                     : "This listing was published without an ownership document, so there is nothing to approve."}
                 </p>
               </div>
@@ -1141,7 +1141,7 @@ function PropertyDetailPanel({
             )}
 
             {/* Actions for a listing with NO document. These lived inside the
-                branch above, which only renders when a document EXISTS — so
+                branch above, which only renders when a document EXISTS - so
                 the one case they were written for was the one case that could
                 never reach them, and a missing doc had no action at all. */}
             {canWrite && isMissingDoc && !showRejectForm && (

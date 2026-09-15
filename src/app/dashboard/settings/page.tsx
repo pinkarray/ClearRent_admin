@@ -102,7 +102,7 @@ export default function SettingsPage() {
             );
           })}
 
-          {/* Sign out — separate */}
+          {/* Sign out - separate */}
           <div className="pt-2 mt-2 border-t border-[rgb(var(--border))]">
             <SignOutButton />
           </div>
@@ -414,7 +414,7 @@ function AboutSection() {
 
       <div className="p-4 rounded-xl bg-[rgb(var(--brand))]/5 border border-[rgb(var(--brand))]/20">
         <p className="text-sm text-[rgb(var(--text-secondary))] leading-relaxed">
-          ClearRent eliminates fraud in Nigeria's rental market by connecting verified landlords directly with verified tenants — making agents optional, not mandatory.
+          ClearRent eliminates fraud in Nigeria's rental market by connecting verified landlords directly with verified tenants - making agents optional, not mandatory.
         </p>
       </div>
     </div>
