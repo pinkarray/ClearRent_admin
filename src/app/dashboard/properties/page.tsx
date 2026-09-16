@@ -1268,51 +1268,67 @@ function residenceLine(p: Property): string | null {
 }
 
 function UtilityBillLink({ landlordId }: { landlordId: string }) {
-  const [state, setState] = useState<"idle" | "loading" | "none">("idle");
+  const [state, setState] = useState<"idle" | "loading" | "none" | "failed">("idle");
+  const [preview, setPreview] = useState<{ url: string; type: string } | null>(null);
 
+  // Shown in the panel, the way the verifications page previews documents.
+  // A blob URL handed to a freshly opened tab is refused on mobile Chrome.
   const open = async () => {
-    // Opened inside the click so the browser does not block it after the awaits.
-    const tab = window.open("", "_blank");
     setState("loading");
     try {
       const user = await getDoc(doc(db, "users", landlordId));
       const docs = (user.data()?.verificationDocs ?? {}) as Record<string, string>;
       const path = docs.utilityBill || docs.utilityBillUrl;
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!path || !idToken) {
-        tab?.close();
+      if (!path) {
         setState("none");
+        return;
+      }
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) {
+        setState("failed");
         return;
       }
       const res = await fetch(`/api/verification-image?path=${encodeURIComponent(path)}`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       if (!res.ok) {
-        tab?.close();
-        setState("none");
+        // A bad-request here is a legacy URL rather than a Storage path.
+        setState(res.status === 400 || res.status === 404 ? "none" : "failed");
         return;
       }
-      const url = URL.createObjectURL(await res.blob());
-      if (tab) tab.location.href = url;
+      const blob = await res.blob();
+      setPreview({ url: URL.createObjectURL(blob), type: blob.type });
       setState("idle");
     } catch {
-      tab?.close();
-      setState("none");
+      setState("failed");
     }
   };
 
   return (
-    <button
-      onClick={open}
-      disabled={state === "loading"}
-      className="text-xs text-[rgb(var(--brand))] hover:underline disabled:opacity-50"
-    >
-      {state === "loading"
-        ? "Opening utility bill…"
-        : state === "none"
-          ? "No utility bill on file"
-          : "Open their utility bill (verification)"}
-    </button>
+    <div>
+      <button
+        onClick={open}
+        disabled={state === "loading"}
+        className="text-xs text-[rgb(var(--brand))] hover:underline disabled:opacity-50"
+      >
+        {state === "loading"
+          ? "Opening utility bill…"
+          : state === "none"
+            ? "No utility bill on file"
+            : state === "failed"
+              ? "Could not open the utility bill. Tap to retry."
+              : "Show their utility bill (verification)"}
+      </button>
+      {preview &&
+        (preview.type.startsWith("image/") ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview.url} alt="Utility bill" className="mt-2 w-full rounded-lg" />
+        ) : (
+          <a href={preview.url} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-[rgb(var(--brand))]">
+            Open the document
+          </a>
+        ))}
+    </div>
   );
 }
 
