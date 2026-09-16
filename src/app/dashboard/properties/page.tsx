@@ -647,28 +647,31 @@ function PropertyCard({
           </div>
         )}
         {/* Badges overlaid on image */}
-        <div className="absolute top-2 left-2 flex gap-1.5">
-          <AvailabilityBadge available={property.isAvailable} docStatus={docInfo.status} />
-        </div>
-        <div className="absolute top-2 right-2 flex gap-1.5">
-          {/* We operate in Lagos. Nothing stops this being listed, so the
-              reviewer has to see it before approving. */}
-          {isOutsideLagos(property) && (
-            <span className="badge-warning gap-1 text-[10px]">
-              <MapPin size={10} /> {property.state}
-            </span>
-          )}
-          {property.homeProofPending && (
-            <span className="badge-warning gap-1 text-[10px]">
-              <Home size={10} /> Home bill to check
-            </span>
-          )}
-          {docInfo.building && (
-            <span className="badge bg-black/50 text-white border-0 gap-1 text-[10px] backdrop-blur-sm">
-              <Building2 size={10} /> In building
-            </span>
-          )}
-          <DocStatusBadge status={docInfo.status} />
+        {/* One row, so the right-hand badges wrap instead of covering the left one. */}
+        <div className="absolute inset-x-2 top-2 flex items-start justify-between gap-1.5">
+          <div className="flex shrink-0 gap-1.5">
+            <AvailabilityBadge available={property.isAvailable} docStatus={docInfo.status} />
+          </div>
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {/* We operate in Lagos. Nothing stops this being listed, so the
+                reviewer has to see it before approving. */}
+            {isOutsideLagos(property) && (
+              <span className="badge-warning gap-1 text-[10px]">
+                <MapPin size={10} /> {property.state}
+              </span>
+            )}
+            {property.homeProofPending && (
+              <span className="badge-warning gap-1 text-[10px]">
+                <Home size={10} /> Home bill to check
+              </span>
+            )}
+            {docInfo.building && (
+              <span className="badge bg-black/50 text-white border-0 gap-1 text-[10px] backdrop-blur-sm">
+                <Building2 size={10} /> In building
+              </span>
+            )}
+            <DocStatusBadge status={docInfo.status} />
+          </div>
         </div>
       </div>
 
