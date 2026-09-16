@@ -8,6 +8,10 @@ import {
   onSnapshot,
   doc,
   getDoc,
+  getDocs,
+  where,
+  writeBatch,
+  serverTimestamp,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, auth, functions } from "@/lib/firebase";
@@ -137,6 +141,8 @@ interface Property {
   /** Tenant-facing line from the landlord's residence: on_premises | elsewhere | abroad. */
   landlordResidence?: string;
   landlordResidenceRegion?: string;
+  /** The landlord says this unit's building is home and the utility bill awaits a check. */
+  homeProofPending?: boolean;
   assignedAgentName?: string;
   caretakerId?: string;
   caretakerName?: string;
@@ -326,6 +332,7 @@ export default function PropertiesPage() {
           inspectionHandler: data.inspectionHandler || "self",
           landlordResidence: data.landlordResidence,
           landlordResidenceRegion: data.landlordResidenceRegion,
+          homeProofPending: data.homeProofPending === true,
           assignedAgentName: data.assignedAgentName,
           caretakerId: data.caretakerId,
           caretakerName: data.caretakerName,
@@ -372,6 +379,10 @@ export default function PropertiesPage() {
     (p) => resolveDoc(p, buildings).status === "pending"
   ).length;
   const totalCount = properties.length;
+  // One claim covers every unit in the building, so count buildings, not units.
+  const homeProofCount = new Set(
+    properties.filter((p) => p.homeProofPending).map((p) => `${p.landlordId}/${p.buildingId}`)
+  ).size;
   const availableCount = properties.filter((p) => p.isAvailable).length;
   const outsideLagosCount = properties.filter(isOutsideLagos).length;
 
@@ -455,6 +466,11 @@ export default function PropertiesPage() {
           {pendingDocCount > 0 && (
             <span className="text-amber-500 font-medium">
               {" "}· {pendingDocCount} doc{pendingDocCount !== 1 ? "s" : ""} pending review
+            </span>
+          )}
+          {homeProofCount > 0 && (
+            <span className="text-amber-500 font-medium">
+              {" "}· {homeProofCount} home bill{homeProofCount !== 1 ? "s" : ""} to check
             </span>
           )}
         </p>
@@ -640,6 +656,11 @@ function PropertyCard({
           {isOutsideLagos(property) && (
             <span className="badge-warning gap-1 text-[10px]">
               <MapPin size={10} /> {property.state}
+            </span>
+          )}
+          {property.homeProofPending && (
+            <span className="badge-warning gap-1 text-[10px]">
+              <Home size={10} /> Home bill to check
             </span>
           )}
           {docInfo.building && (
@@ -1051,6 +1072,9 @@ function PropertyDetailPanel({
                 verification is the only address evidence we hold, so it sits
                 right beside it for a visual check. */}
             <UtilityBillLink landlordId={property.landlordId} />
+            {property.buildingId && (
+              <HomeProofReview property={property} canWrite={canWrite} />
+            )}
           </div>
 
           {/* Stats */}
@@ -1265,6 +1289,134 @@ function residenceLine(p: Property): string | null {
     return p.landlordResidenceRegion ? `Elsewhere (${p.landlordResidenceRegion})` : "Elsewhere";
   if (p.landlordResidence === "abroad") return "Outside Nigeria";
   return null;
+}
+
+/** Streams a private document through the admin-guarded route. */
+async function fetchPrivateDoc(path: string): Promise<Blob | null> {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) return null;
+  const res = await fetch(`/api/verification-image?path=${encodeURIComponent(path)}`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  return res.ok ? res.blob() : null;
+}
+
+/*
+  The "I live here" check. A landlord who says a unit's building is their home
+  sends a utility bill for it; tenants are told "lives on the premises" only
+  once it is accepted here. Accepting or rejecting also restamps every unit of
+  that landlord in the building, which the owner-update rule refuses the
+  landlord themselves until the bill is accepted.
+*/
+function HomeProofReview({ property, canWrite }: { property: Property; canWrite: boolean }) {
+  const [residence, setResidence] = useState<Record<string, unknown> | null>(null);
+  const [preview, setPreview] = useState<{ url: string; type: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getDoc(doc(db, "users", property.landlordId, "private", "residence"))
+      .then((snap) => setResidence(snap.data() ?? null))
+      .catch(() => setResidence(null));
+  }, [property.landlordId]);
+
+  if (!residence || residence.homeBuildingId !== property.buildingId) return null;
+  const status = residence.homeProofStatus as string | undefined;
+  const path = residence.homeProofPath as string | undefined;
+
+  const showBill = async () => {
+    if (!path) return;
+    const blob = await fetchPrivateDoc(path);
+    if (blob) setPreview({ url: URL.createObjectURL(blob), type: blob.type });
+    else setError("Could not open the bill.");
+  };
+
+  const decide = async (accept: boolean) => {
+    let reason = "";
+    if (!accept) {
+      reason = window.prompt("Why is this bill not accepted? The landlord sees this.")?.trim() ?? "";
+      if (!reason) return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, "users", property.landlordId, "private", "residence"), {
+        homeProofStatus: accept ? "accepted" : "rejected",
+        homeProofRejectionReason: accept ? null : reason,
+        homeProofReviewedAt: serverTimestamp(),
+        homeProofReviewedBy: auth.currentUser?.uid ?? null,
+      });
+      const units = await getDocs(
+        query(collection(db, "properties"), where("landlordId", "==", property.landlordId))
+      );
+      units.docs
+        .filter((u) => u.data().buildingId === property.buildingId)
+        .forEach((u) =>
+          batch.update(u.ref, {
+            landlordResidence: accept ? "on_premises" : "elsewhere",
+            landlordResidenceRegion: accept ? null : ((residence.state as string) ?? null),
+            landlordLivesInProperty: accept,
+            landlordLivesOnPremises: accept,
+            homeProofPending: false,
+            updatedAt: serverTimestamp(),
+          })
+        );
+      await batch.commit();
+      setResidence({
+        ...residence,
+        homeProofStatus: accept ? "accepted" : "rejected",
+        homeProofRejectionReason: accept ? null : reason,
+      });
+    } catch {
+      setError("Could not save the decision.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 space-y-2 rounded-xl border border-[rgb(var(--border))] p-3">
+      <p className="text-xs font-medium text-[rgb(var(--text-primary))]">
+        Says this building is their home:{" "}
+        {status === "accepted"
+          ? "bill accepted"
+          : status === "rejected"
+            ? "bill rejected"
+            : "bill waiting for you"}
+      </p>
+      {path && (
+        <button onClick={showBill} className="text-xs text-[rgb(var(--brand))] hover:underline">
+          Show the utility bill they sent for this building
+        </button>
+      )}
+      {preview &&
+        (preview.type.startsWith("image/") ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview.url} alt="Home utility bill" className="w-full rounded-lg" />
+        ) : (
+          <a
+            href={preview.url}
+            target="_blank"
+            rel="noreferrer"
+            className="block text-xs text-[rgb(var(--brand))]"
+          >
+            Open the document
+          </a>
+        ))}
+      {canWrite && status === "pending" && (
+        <div className="flex gap-2">
+          <button disabled={busy} onClick={() => decide(true)} className="btn-primary text-xs px-3 py-1.5">
+            Accept
+          </button>
+          <button disabled={busy} onClick={() => decide(false)} className="btn-secondary text-xs px-3 py-1.5">
+            Reject
+          </button>
+        </div>
+      )}
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  );
 }
 
 function UtilityBillLink({ landlordId }: { landlordId: string }) {
