@@ -144,6 +144,9 @@ interface Property {
   landlordResidenceRegion?: string;
   /** The landlord says this unit's building is home and the utility bill awaits a check. */
   homeProofPending?: boolean;
+  /** "paid" only once confirmListingFee has checked the charge with Paystack. */
+  listingFeeStatus?: string;
+  listingFeeAmount?: number;
   assignedAgentName?: string;
   caretakerId?: string;
   caretakerName?: string;
@@ -339,6 +342,8 @@ export default function PropertiesPage() {
           landlordResidence: data.landlordResidence,
           landlordResidenceRegion: data.landlordResidenceRegion,
           homeProofPending: data.homeProofPending === true,
+          listingFeeStatus: data.listingFeeStatus,
+          listingFeeAmount: data.listingFeeAmount,
           assignedAgentName: data.assignedAgentName,
           caretakerId: data.caretakerId,
           caretakerName: data.caretakerName,
@@ -1106,6 +1111,11 @@ function PropertyDetailPanel({
                     : residenceLine(property)!
               }
             />
+            <DetailRow
+              icon={FileText}
+              label="Listing fee"
+              value={listingFeeLine(property, siblings)}
+            />
             {/* The claim is self-reported. The utility bill from identity
                 verification is the only address evidence we hold, so it sits
                 right beside it for a visual check. */}
@@ -1319,6 +1329,23 @@ function DocStatusBadge({ status }: { status: string }) {
       {cfg.label}
     </span>
   );
+}
+
+/**
+ * The listing fee, as functions/src/listing_fee_ops.ts `listingFeeOwed` judges
+ * it. Verify and Publish are refused on the server while it is owed; this row
+ * says why before the admin tries.
+ */
+function listingFeeLine(p: Property, siblings: Property[]): string {
+  if (p.listingFeeStatus === "paid") {
+    return `Paid${p.listingFeeAmount ? ` (${formatNaira(p.listingFeeAmount)})` : ""}`;
+  }
+  const hasOlder = siblings.some(
+    (s) => s.id !== p.id && s.landlordId === p.landlordId && s.createdAt < p.createdAt
+  );
+  if (!hasOlder) return "Free (first listing)";
+  if (p.isVerified) return "Not charged (live before fee)";
+  return "Not paid (publishing blocked)";
 }
 
 function residenceLine(p: Property): string | null {

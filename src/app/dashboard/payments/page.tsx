@@ -194,11 +194,12 @@ export default function PaymentsPage() {
       merge();
     });
 
-    // Listing fee payments - properties with listingFeeStatus in [pending, approved, rejected]
+    // Listing fee payments. "paid" is written by confirmListingFee once Paystack
+    // confirms; pending/approved/rejected are the older proof-upload flow.
     // Note: no orderBy to avoid composite index requirement - sorted client-side in merge()
     const listingQ = query(
       collection(db, "properties"),
-      where("listingFeeStatus", "in", ["pending", "approved", "rejected"])
+      where("listingFeeStatus", "in", ["paid", "pending", "approved", "rejected"])
     );
 
     const unsubListing = onSnapshot(
@@ -222,17 +223,17 @@ export default function PaymentsPage() {
             landlordId: data.landlordId,
             landlordName: data.landlordName,
             landlordPhone: data.landlordPhone,
-            amount: 10000,
+            amount: typeof data.listingFeeAmount === "number" ? data.listingFeeAmount : 10000,
             paymentProofUrl: data.listingFeeProofUrl,
-            paymentReference: undefined,
+            paymentReference: data.listingFeePaymentReference,
             paymentStatus:
               data.listingFeeStatus === "pending"
                 ? "pending_verification"
-                : data.listingFeeStatus === "approved"
+                : data.listingFeeStatus === "approved" || data.listingFeeStatus === "paid"
                 ? "paid"
                 : "refunded",
             refundReason: data.listingFeeRejectionReason,
-            paidAt: parseTimestamp(data.createdAt),
+            paidAt: parseTimestamp(data.listingFeePaidAt) || parseTimestamp(data.createdAt),
             verifiedAt: parseTimestamp(data.listingFeeVerifiedAt),
             refundedAt: parseTimestamp(data.listingFeeRejectedAt),
             createdAt: parseTimestamp(data.createdAt) || new Date(),
