@@ -86,7 +86,7 @@ const TYPE_LABELS: Record<string, string> = {
   shop: "Shop",
   office: "Office",
 };
-type DocStatusFilter = "all" | "pending" | "verified" | "rejected" | "none";
+type DocStatusFilter = "all" | "pending" | "verified" | "rejected" | "none" | "home_bill";
 type RegionFilter = "all" | "lagos" | "outside";
 
 interface Property {
@@ -391,7 +391,9 @@ export default function PropertiesPage() {
   const filtered = useMemo(() => {
     return properties.filter((p) => {
       if (typeFilter !== "all" && p.propertyType !== typeFilter) return false;
-      if (
+      if (docStatusFilter === "home_bill") {
+        if (!p.homeProofPending) return false;
+      } else if (
         docStatusFilter !== "all" &&
         resolveDoc(p, buildings).status !== docStatusFilter
       )
@@ -496,6 +498,26 @@ export default function PropertiesPage() {
         </div>
       )}
 
+      {/* Home bills banner */}
+      {homeProofCount > 0 && (
+        <div
+          className="card border-amber-500/30 bg-amber-500/5 flex items-start gap-3 cursor-pointer hover:bg-amber-500/10 transition-colors"
+          onClick={() => setDocStatusFilter("home_bill")}
+        >
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+            <Home size={18} className="text-amber-500" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-[rgb(var(--text-primary))]">
+              {homeProofCount} home bill{homeProofCount !== 1 ? "s" : ""} to check
+            </p>
+            <p className="text-xs text-[rgb(var(--text-secondary))] mt-0.5">
+              Tap to filter, then open a listing to see the bill and accept or reject it. Tenants are told the landlord lives on the premises only once it is accepted.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Type filter chips */}
       <div className="flex flex-wrap gap-2">
         {(["all", ...Object.keys(TYPE_LABELS)] as TypeFilter[]).map((t) => {
@@ -545,6 +567,7 @@ export default function PropertiesPage() {
           <option value="verified">Doc Verified</option>
           <option value="rejected">Doc Rejected</option>
           <option value="none">No Doc Uploaded</option>
+          <option value="home_bill">Home Bill To Check</option>
         </select>
         {/* Where we operate. Nothing blocks an out-of-state listing at write
             time - this queue is the gate, so it has to be findable. */}
