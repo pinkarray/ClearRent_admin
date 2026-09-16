@@ -1102,7 +1102,7 @@ function PropertyDetailPanel({
                 residenceLine(property) === null
                   ? "Not answered yet"
                   : property.homeProofPending
-                    ? `${residenceLine(property)}, until the home bill below is accepted`
+                    ? `${residenceLine(property)} (bill pending)`
                     : residenceLine(property)!
               }
             />
