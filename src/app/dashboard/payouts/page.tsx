@@ -106,7 +106,9 @@ export default function PayoutsPage() {
             : data.landlordName || "Landlord",
           handlerPhone: isAgentHandled ? data.agentPhone : data.landlordPhone,
           tenantName: data.tenantName || "Unknown",
-          agentEarnings: (data.agentEarnings || 0) as number,
+          // What markInspectionAgentPayoutPaid pays: the server-credited
+          // amount, not the figure the booking client wrote.
+          agentEarnings: (data.earningsAmount || 0) as number,
           totalFee: (data.totalFee || 0) as number,
           agentPayoutStatus: data.agentPayoutStatus || "pending",
           agentPaidAt: parseTimestamp(data.agentPaidAt),
