@@ -39,6 +39,10 @@ export const RESOLVE_ON_PAGE: Record<string, string> = {
   // how the landlord is actually told to try again. Dismissing by hand would
   // hide a listing that is stuck with nothing to review.
   property_doc_missing: "Properties",
+  // Accepting or rejecting the bill on Properties closes this
+  // (onHomeProofChanged). Dismissing would leave the landlord waiting on a
+  // check nobody is going to make.
+  home_proof_submitted: "Properties",
 };
 
 // `inspection_lifecycle` is a single upserted doc per inspection that walks

@@ -283,6 +283,12 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [docStatusFilter, setDocStatusFilter] = useState<DocStatusFilter>("all");
+  // The home bill alert links here with ?filter=home_bill.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("filter") === "home_bill") {
+      setDocStatusFilter("home_bill");
+    }
+  }, []);
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);

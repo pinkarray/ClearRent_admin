@@ -133,7 +133,11 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-1">
               {activities.slice(0, 8).map((activity) => (
-                <ActivityItem key={activity.id} activity={activity} />
+                <ActivityItem
+                  key={activity.id}
+                  activity={activity}
+                  onOpen={() => router.push("/dashboard/alerts")}
+                />
               ))}
             </div>
           )}
@@ -251,38 +255,46 @@ function StatCard({
 // ── Activity Item Component ─────────────────────────────────────────────────
 
 import { RecentActivity } from "@/hooks/use-stats";
-import { BarChart3, Megaphone } from "lucide-react";
+import { BarChart3, Megaphone, Bell } from "lucide-react";
 
-const activityIcons: Record<string, any> = {
-  verification: ShieldCheck,
-  payment: CreditCard,
-  issue: AlertTriangle,
-  signup: UserPlus,
-  rental: Home,
+const severityColors: Record<RecentActivity["severity"], string> = {
+  critical: "text-red-500 bg-red-500/10",
+  warning: "text-amber-500 bg-amber-500/10",
+  info: "text-blue-500 bg-blue-500/10",
 };
 
-const activityColors: Record<string, string> = {
-  verification: "text-emerald-500 bg-emerald-500/10",
-  payment: "text-blue-500 bg-blue-500/10",
-  issue: "text-red-500 bg-red-500/10",
-  signup: "text-purple-500 bg-purple-500/10",
-  rental: "text-teal-500 bg-teal-500/10",
-};
+function ActivityItem({
+  activity,
+  onOpen,
+}: {
+  activity: RecentActivity;
+  onOpen: () => void;
+}) {
+  const Icon = activity.severity === "info" ? Bell : AlertTriangle;
+  const colorClass = severityColors[activity.severity];
 
-function ActivityItem({ activity }: { activity: RecentActivity }) {
-  const Icon = activityIcons[activity.type] || Clock;
-  const colorClass = activityColors[activity.type] || "text-gray-500 bg-gray-500/10";
-  const [iconBg, iconText] = colorClass.split(" ");
-
+  // Rows with work left open the Alerts feed, where that work is listed; the
+  // rest are the record and go nowhere.
   return (
-    <div className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-[rgb(var(--background))] transition-colors">
+    <div
+      onClick={activity.needsAction ? onOpen : undefined}
+      className={cn(
+        "flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-[rgb(var(--background))] transition-colors",
+        activity.needsAction && "cursor-pointer"
+      )}
+    >
       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", colorClass)}>
         <Icon size={15} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[rgb(var(--text-primary))] truncate">
-          {activity.title}
-        </p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-medium text-[rgb(var(--text-primary))] truncate">
+            {activity.title}
+          </p>
+          {activity.needsAction && (
+            <span className="badge-warning text-[10px] shrink-0">Needs action</span>
+          )}
+        </div>
         <p className="text-xs text-[rgb(var(--text-hint))] truncate">
           {activity.subtitle}
         </p>

@@ -44,6 +44,7 @@ import {
   HeartHandshake,
   FileSignature,
   HandCoins,
+  Home,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -144,6 +145,12 @@ const TYPE_META: Record<
   property_doc_missing: {
     icon: FileWarning,
     route: () => "/dashboard/properties",
+  },
+  // "I live here" with a utility bill. Opens Properties on the listings whose
+  // bill is waiting, where the bill is shown and accepted or rejected.
+  home_proof_submitted: {
+    icon: Home,
+    route: () => "/dashboard/properties?filter=home_bill",
   },
   rental_interest: { icon: HeartHandshake, route: () => "/dashboard/rent-attention" },
   agreement_ready: {

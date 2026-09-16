@@ -12,6 +12,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { AdminAlert, isRoutineInfo } from "@/lib/alerts";
 
 export interface DashboardStats {
   totalUsers: number;
@@ -141,14 +142,18 @@ export function useDashboardStats(): DashboardStats {
 
 // ── Recent Activity ─────────────────────────────────────────────────────────
 
+// The admin_alerts feed, newest first, open or closed. Every producer that has
+// something to tell an admin (listings, payments, disputes, sign-ups, home
+// bills) writes there, so it is the platform's activity log. Reading the users
+// collection showed sign-ups and nothing else.
 export interface RecentActivity {
   id: string;
-  type: "verification" | "payment" | "issue" | "signup" | "rental";
+  severity: AdminAlert["severity"];
   title: string;
   subtitle: string;
   timestamp: Date;
-  status?: string;
-  metadata?: Record<string, any>;
+  /** Still open and not routine info: the same test as the attention banner. */
+  needsAction: boolean;
 }
 
 export function useRecentActivity(count = 15): {
@@ -159,52 +164,41 @@ export function useRecentActivity(count = 15): {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
-
-    // Listen to recent user signups
-    const usersQuery = query(
-      collection(db, "users"),
+    const q = query(
+      collection(db, "admin_alerts"),
       orderBy("createdAt", "desc"),
       limit(count)
     );
-
-    const unsubUsers = onSnapshot(usersQuery, (snap) => {
-      if (!isMounted) return;
-      const userActivities: RecentActivity[] = snap.docs.map((doc) => {
-        const d = doc.data();
-        const ts = d.createdAt instanceof Timestamp ? d.createdAt.toDate() : new Date();
-        const vStatus = d.verificationStatus || "none";
-
-        // Determine activity type
-        let type: RecentActivity["type"] = "signup";
-        let title = `New ${d.accountType || "user"} signed up`;
-        let subtitle = d.fullName || d.email || "Unknown";
-
-        if (vStatus === "pending") {
-          type = "verification";
-          title = `Verification submitted`;
-          subtitle = `${d.fullName || "User"} (${d.accountType || "unknown"})`;
-        }
-
-        return {
-          id: doc.id,
-          type,
-          title,
-          subtitle,
-          timestamp: ts,
-          status: vStatus,
-          metadata: { accountType: d.accountType, email: d.email },
-        };
-      });
-
-      setActivities(userActivities);
-      setLoading(false);
-    });
-
-    return () => {
-      isMounted = false;
-      unsubUsers();
-    };
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setActivities(
+          snap.docs.map((d) => {
+            const x = d.data();
+            const alert = {
+              id: d.id,
+              type: (x.type as string) ?? "unknown",
+              severity: (x.severity as AdminAlert["severity"]) ?? "info",
+              title: (x.title as string) ?? "Alert",
+              body: (x.body as string) ?? "",
+              meta: x.meta as AdminAlert["meta"],
+              createdAt: x.createdAt instanceof Timestamp ? x.createdAt.toDate() : null,
+            } as AdminAlert;
+            return {
+              id: alert.id,
+              severity: alert.severity,
+              title: alert.title,
+              subtitle: alert.body,
+              timestamp: alert.createdAt ?? new Date(),
+              needsAction: x.status === "open" && !isRoutineInfo(alert),
+            };
+          })
+        );
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    return () => unsub();
   }, [count]);
 
   return { activities, loading };
