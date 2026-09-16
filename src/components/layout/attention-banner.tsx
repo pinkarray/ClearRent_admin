@@ -11,6 +11,7 @@ import {
   TrendingUp,
   ArrowRight,
   Bell,
+  Home,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -45,6 +46,11 @@ export function AttentionBanner() {
   // Counting only properties made every grouped-unit listing invisible here.
   const [pendingBuildingDocs, setPendingBuildingDocs] = useState(0);
 
+  // Buildings a landlord says are home, with the utility bill not yet checked.
+  // Counted from the listings rather than the alert, so a bill sent before the
+  // alert existed still shows. One claim covers every unit in the building.
+  const [homeBills, setHomeBills] = useState(0);
+
   useEffect(() => {
     const q = query(
       collection(db, "properties"),
@@ -63,6 +69,19 @@ export function AttentionBanner() {
     );
     const unsub = onSnapshot(q, (snap) => {
       setPendingBuildingDocs(snap.size);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "properties"),
+      where("homeProofPending", "==", true)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setHomeBills(
+        new Set(snap.docs.map((d) => `${d.get("landlordId")}/${d.get("buildingId")}`)).size
+      );
     });
     return () => unsub();
   }, []);
@@ -110,8 +129,11 @@ export function AttentionBanner() {
       // (sign-ups, rent payments, the daily digest, finished inspections) lives
       // in the Alerts feed but shouldn't inflate "needs your attention".
       // Severity alone won't do: an inspection awaiting approval is `info`.
+      // Home bills have their own line below, so they are not counted twice.
       const actionable = snap.docs.filter(
-        (d) => !isRoutineInfo({ id: d.id, ...d.data() } as AdminAlert)
+        (d) =>
+          d.get("type") !== "home_proof_submitted" &&
+          !isRoutineInfo({ id: d.id, ...d.data() } as AdminAlert)
       ).length;
       setOpenAlerts(actionable);
     });
@@ -125,6 +147,7 @@ export function AttentionBanner() {
       stats.pendingPayments > 0 ||
       pendingPropertyDocs > 0 ||
       pendingBuildingDocs > 0 ||
+      homeBills > 0 ||
       inspectionReviews > 0 ||
       pendingRefunds > 0 ||
       pendingRentReviews > 0 ||
@@ -170,6 +193,16 @@ export function AttentionBanner() {
               >
                 <FileCheck size={14} />
                 {pendingBuildingDocs} building{pendingBuildingDocs !== 1 ? "s" : ""} awaiting review
+                <ArrowRight size={12} />
+              </button>
+            )}
+            {homeBills > 0 && (
+              <button
+                onClick={() => router.push("/dashboard/properties?filter=home_bill")}
+                className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:underline"
+              >
+                <Home size={14} />
+                {homeBills} home bill{homeBills !== 1 ? "s" : ""} to check
                 <ArrowRight size={12} />
               </button>
             )}

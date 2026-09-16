@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   collection,
   query,
@@ -283,12 +284,11 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [docStatusFilter, setDocStatusFilter] = useState<DocStatusFilter>("all");
-  // The home bill alert links here with ?filter=home_bill.
+  // The home bill alert and banner link here with ?filter=home_bill.
+  const filterParam = useSearchParams().get("filter");
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("filter") === "home_bill") {
-      setDocStatusFilter("home_bill");
-    }
-  }, []);
+    if (filterParam === "home_bill") setDocStatusFilter("home_bill");
+  }, [filterParam]);
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
