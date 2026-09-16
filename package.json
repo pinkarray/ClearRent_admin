@@ -10,6 +10,9 @@
     "set-role": "node scripts/set-role.mjs",
     "backfill-deleted": "node scripts/backfill-deleted-accounts.mjs"
   },
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
