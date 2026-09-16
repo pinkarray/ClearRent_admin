@@ -1097,8 +1097,14 @@ function PropertyDetailPanel({
             )}
             <DetailRow
               icon={Home}
-              label="Says they live"
-              value={residenceLine(property) ?? "Not answered yet"}
+              label="Tenants are told they live"
+              value={
+                residenceLine(property) === null
+                  ? "Not answered yet"
+                  : property.homeProofPending
+                    ? `${residenceLine(property)}, until the home bill below is accepted`
+                    : residenceLine(property)!
+              }
             />
             {/* The claim is self-reported. The utility bill from identity
                 verification is the only address evidence we hold, so it sits
