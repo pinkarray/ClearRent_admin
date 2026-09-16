@@ -134,6 +134,9 @@ interface Property {
   inquiryCount: number;
   // Inspection
   inspectionHandler: string;
+  /** Tenant-facing line from the landlord's residence: on_premises | elsewhere | abroad. */
+  landlordResidence?: string;
+  landlordResidenceRegion?: string;
   assignedAgentName?: string;
   caretakerId?: string;
   caretakerName?: string;
@@ -321,6 +324,8 @@ export default function PropertiesPage() {
           viewCount: data.viewCount || 0,
           inquiryCount: data.inquiryCount || 0,
           inspectionHandler: data.inspectionHandler || "self",
+          landlordResidence: data.landlordResidence,
+          landlordResidenceRegion: data.landlordResidenceRegion,
           assignedAgentName: data.assignedAgentName,
           caretakerId: data.caretakerId,
           caretakerName: data.caretakerName,
@@ -897,6 +902,21 @@ function PropertyDetailPanel({
                   <MapPin size={10} /> Outside Lagos
                 </span>
               )}
+              {/* A landlord abroad cannot open the door. Self-handled on top of
+                  that means nobody will; rules keep it off "ready", this says why. */}
+              {property.landlordResidence === "abroad" && (
+                <span
+                  className={cn(
+                    "gap-1 text-[10px]",
+                    property.inspectionHandler === "self" ? "badge-error" : "badge-warning"
+                  )}
+                >
+                  <AlertTriangle size={10} />
+                  {property.inspectionHandler === "self"
+                    ? "Landlord abroad, self-handled"
+                    : "Landlord abroad"}
+                </span>
+              )}
               {property.readyForInspections ? (
                 <span className="badge-success gap-1 text-[10px]">
                   <CheckCircle2 size={10} /> Vetted
@@ -1022,6 +1042,15 @@ function PropertyDetailPanel({
             {property.landlordPhone && (
               <DetailRow icon={User} label="Phone" value={property.landlordPhone} />
             )}
+            <DetailRow
+              icon={Home}
+              label="Says they live"
+              value={residenceLine(property) ?? "Not answered yet"}
+            />
+            {/* The claim is self-reported. The utility bill from identity
+                verification is the only address evidence we hold, so it sits
+                right beside it for a visual check. */}
+            <UtilityBillLink landlordId={property.landlordId} />
           </div>
 
           {/* Stats */}
@@ -1227,6 +1256,63 @@ function DocStatusBadge({ status }: { status: string }) {
       <cfg.icon size={10} />
       {cfg.label}
     </span>
+  );
+}
+
+function residenceLine(p: Property): string | null {
+  if (p.landlordResidence === "on_premises") return "On the premises";
+  if (p.landlordResidence === "elsewhere")
+    return p.landlordResidenceRegion ? `Elsewhere (${p.landlordResidenceRegion})` : "Elsewhere";
+  if (p.landlordResidence === "abroad") return "Outside Nigeria";
+  return null;
+}
+
+function UtilityBillLink({ landlordId }: { landlordId: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "none">("idle");
+
+  const open = async () => {
+    // Opened inside the click so the browser does not block it after the awaits.
+    const tab = window.open("", "_blank");
+    setState("loading");
+    try {
+      const user = await getDoc(doc(db, "users", landlordId));
+      const docs = (user.data()?.verificationDocs ?? {}) as Record<string, string>;
+      const path = docs.utilityBill || docs.utilityBillUrl;
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!path || !idToken) {
+        tab?.close();
+        setState("none");
+        return;
+      }
+      const res = await fetch(`/api/verification-image?path=${encodeURIComponent(path)}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) {
+        tab?.close();
+        setState("none");
+        return;
+      }
+      const url = URL.createObjectURL(await res.blob());
+      if (tab) tab.location.href = url;
+      setState("idle");
+    } catch {
+      tab?.close();
+      setState("none");
+    }
+  };
+
+  return (
+    <button
+      onClick={open}
+      disabled={state === "loading"}
+      className="text-xs text-[rgb(var(--brand))] hover:underline disabled:opacity-50"
+    >
+      {state === "loading"
+        ? "Opening utility bill…"
+        : state === "none"
+          ? "No utility bill on file"
+          : "Open their utility bill (verification)"}
+    </button>
   );
 }
 
