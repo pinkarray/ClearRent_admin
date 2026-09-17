@@ -1378,6 +1378,10 @@ function HomeProofReview({ property, canWrite }: { property: Property; canWrite:
   const [preview, setPreview] = useState<{ url: string; type: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Rejecting asks for the reason inline, as the document reject does.
+  // window.prompt headed it with the site domain, like a browser error.
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     getDoc(doc(db, "users", property.landlordId, "private", "residence"))
@@ -1399,7 +1403,7 @@ function HomeProofReview({ property, canWrite }: { property: Property; canWrite:
   const decide = async (accept: boolean) => {
     let reason = "";
     if (!accept) {
-      reason = window.prompt("Why is this bill not accepted? The landlord sees this.")?.trim() ?? "";
+      reason = rejectReason.trim();
       if (!reason) return;
     }
     setBusy(true);
@@ -1474,8 +1478,26 @@ function HomeProofReview({ property, canWrite }: { property: Property; canWrite:
           <button disabled={busy} onClick={() => decide(true)} className="btn-primary text-xs px-3 py-1.5">
             Accept
           </button>
-          <button disabled={busy} onClick={() => decide(false)} className="btn-secondary text-xs px-3 py-1.5">
-            Reject
+          <button disabled={busy} onClick={() => setRejecting((v) => !v)} className="btn-secondary text-xs px-3 py-1.5">
+            {rejecting ? "Never mind" : "Reject"}
+          </button>
+        </div>
+      )}
+      {canWrite && status === "pending" && rejecting && (
+        <div className="space-y-2">
+          <textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={2}
+            placeholder="Why is this bill not accepted? The landlord sees this."
+            className="w-full rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--background))] p-2 text-xs text-[rgb(var(--text-primary))]"
+          />
+          <button
+            disabled={busy || !rejectReason.trim()}
+            onClick={() => decide(false)}
+            className="btn-secondary text-xs px-3 py-1.5"
+          >
+            Send rejection
           </button>
         </div>
       )}

@@ -126,6 +126,9 @@ const TYPE_META: Record<
   // off the market until it resolves - the silence sweep will not close a
   // contested handover, so nothing here times out on its own.
   handover_settlement_contested: { icon: DoorOpen, route: () => null },
+  // A tenant asked to move out and the landlord has yet to confirm the
+  // handover. Closes itself once the tenancy leaves moveout_pending.
+  moveout_requested: { icon: DoorOpen, route: () => "/dashboard/handovers" },
 
   // Pipeline events. Previously these had no producer at all, so an admin
   // learned about a waiting verification only by opening the users queue.
@@ -174,6 +177,10 @@ export default function AlertsPage() {
   const [items, setItems] = useState<AdminAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The optional note for a handover nudge, asked in the page rather than a
+  // window.prompt headed with the site domain.
+  const [nudging, setNudging] = useState<{ item: AdminAlert; target: "landlord" | "tenant" } | null>(null);
+  const [nudgeNote, setNudgeNote] = useState("");
   const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
@@ -271,13 +278,8 @@ export default function AlertsPage() {
   // A stalled handover is the one alert where dismissing achieves nothing: the
   // property stays off the market and the two parties are still disagreeing.
   // This is the lever - an on-demand push to whichever side can unblock it.
-  async function nudgeHandover(item: AdminAlert, target: "landlord" | "tenant") {
+  async function nudgeHandover(item: AdminAlert, target: "landlord" | "tenant", note: string) {
     if (!canWrite || !item.targetId) return;
-    const note = window.prompt(
-      `Optional note to add to the ${target}'s reminder`,
-      ""
-    );
-    if (note === null) return;
     setBusyId(item.id);
     try {
       const fn = httpsCallable(functions, "nudgeHandoverParty");
@@ -517,14 +519,20 @@ export default function AlertsPage() {
                           <>
                             <button
                               disabled={busy}
-                              onClick={() => void nudgeHandover(item, "landlord")}
+                              onClick={() => {
+                                setNudgeNote("");
+                                setNudging({ item, target: "landlord" });
+                              }}
                               className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
                             >
                               Nudge landlord
                             </button>
                             <button
                               disabled={busy}
-                              onClick={() => void nudgeHandover(item, "tenant")}
+                              onClick={() => {
+                                setNudgeNote("");
+                                setNudging({ item, target: "tenant" });
+                              }}
                               className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--background))] disabled:opacity-50"
                             >
                               Nudge tenant
@@ -566,6 +574,38 @@ export default function AlertsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {nudging && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setNudging(null)}>
+          <div className="w-full max-w-md rounded-lg bg-background p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">Remind the {nudging.target}</h2>
+            <label className="mt-4 block">
+              <span className="text-sm font-medium">Note to add (optional)</span>
+              <textarea
+                value={nudgeNote}
+                onChange={(e) => setNudgeNote(e.target.value)}
+                rows={3}
+                className="mt-1.5 w-full rounded-md border bg-background p-2 text-sm"
+              />
+            </label>
+            <div className="mt-5 flex justify-end gap-3">
+              <button className="btn-secondary text-sm px-4 py-2" onClick={() => setNudging(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn-primary text-sm px-4 py-2"
+                onClick={() => {
+                  const { item, target } = nudging;
+                  setNudging(null);
+                  void nudgeHandover(item, target, nudgeNote.trim());
+                }}
+              >
+                Send reminder
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
