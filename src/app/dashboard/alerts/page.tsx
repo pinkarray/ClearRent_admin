@@ -129,6 +129,9 @@ const TYPE_META: Record<
   // A tenant asked to move out and the landlord has yet to confirm the
   // handover. Closes itself once the tenancy leaves moveout_pending.
   moveout_requested: { icon: DoorOpen, route: () => "/dashboard/handovers" },
+  // An inspection refund is owed and paid by hand. Closes itself once the
+  // refund leaves pending.
+  refund_due: { icon: HandCoins, route: () => "/dashboard/refunds" },
 
   // Pipeline events. Previously these had no producer at all, so an admin
   // learned about a waiting verification only by opening the users queue.
