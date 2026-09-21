@@ -39,6 +39,11 @@ firebase.initializeApp(${JSON.stringify(config)});
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
+  // A message carrying a notification block is already on screen: the
+  // Firebase SDK draws it itself, with the icon and tag from
+  // webpush.notification and the click target from fcmOptions.link. Drawing
+  // it again here put two identical banners up for every admin alert.
+  if (payload.notification) return;
   const data = payload.data || {};
   // Collapse by alert type: five verifications arriving in a minute should be
   // one badge to act on, not five banners to dismiss.
