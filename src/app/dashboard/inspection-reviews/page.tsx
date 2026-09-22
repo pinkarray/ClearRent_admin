@@ -59,6 +59,9 @@ interface AwaitingInspection {
   disputed: boolean;
   disputeCategory: string | null;
   disputeDetails: string | null;
+  // The handler pressed "Tenant didn't show up" on the day, rather than the
+  // nightly sweep finding only the handler arrived.
+  noShowReported: boolean;
 }
 
 function toDate(v: unknown): Date | null {
@@ -88,6 +91,7 @@ function mapInspection(
     disputed: x.disputed === true,
     disputeCategory: (x.disputeCategory as string) ?? null,
     disputeDetails: (x.disputeDetails as string) ?? null,
+    noShowReported: typeof x.noShowReportedBy === "string",
   };
 }
 
@@ -444,6 +448,11 @@ export default function InspectionReviewsPage() {
                       >
                         Handler {item.handlerArrived ? "arrived" : "no-show"}
                       </span>
+                      {item.noShowReported && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          Handler reported no-show
+                        </span>
+                      )}
                       {item.updatedAt && (
                         <span className="text-[11px] text-[rgb(var(--text-hint))]">
                           flagged {timeAgo(item.updatedAt)}

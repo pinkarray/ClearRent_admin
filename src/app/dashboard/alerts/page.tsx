@@ -71,6 +71,12 @@ const TYPE_META: Record<
     icon: Flag,
     route: () => "/dashboard/inspection-reviews",
   },
+  // The handler (or the nightly sweep) says the tenant never came. Decided
+  // from the review queue; closes itself once it leaves awaitingOutcome.
+  inspection_no_show: {
+    icon: Flag,
+    route: () => "/dashboard/inspection-reviews",
+  },
   inspection_lifecycle: {
     icon: ClipboardList,
     route: () => "/dashboard/inspections",
