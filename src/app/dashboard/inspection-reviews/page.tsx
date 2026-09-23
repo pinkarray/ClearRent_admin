@@ -268,6 +268,31 @@ export default function InspectionReviewsPage() {
     }
   }
 
+  // The tenant missed it but should get another go (they disputed, or had a
+  // reason). Nothing is refunded: the fee carries over to a new time they
+  // pick, and the handler is paid when that visit completes.
+  async function letRebook(item: AwaitingInspection) {
+    if (!canWrite) return;
+    if (
+      !confirm(
+        `Let ${item.tenantName} rebook "${item.propertyTitle}"? Their payment carries over to a new time. Nothing is refunded, and the handler is paid after the new visit.`
+      )
+    )
+      return;
+    setBusyId(item.id);
+    try {
+      const fn = httpsCallable<
+        { requestId: string; action: string },
+        { success: boolean }
+      >(functions, "adminResolveInspection");
+      await fn({ requestId: item.id, action: "rebook" });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Action failed. Please try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   // Dismiss an unfounded dispute: closes it + its alert, no money moves and the
   // inspection status is untouched.
   async function dismissDispute(item: AwaitingInspection) {
@@ -473,6 +498,14 @@ export default function InspectionReviewsPage() {
                           <Undo2 size={14} />
                         )}
                         Refund tenant
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() => letRebook(item)}
+                        className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-[rgb(var(--border))] hover:bg-[rgb(var(--surface-2))] disabled:opacity-50"
+                      >
+                        <CalendarClock size={14} />
+                        Let tenant rebook
                       </button>
                       <button
                         disabled={busy}
