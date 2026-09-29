@@ -17,6 +17,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { cn, timeAgo } from "@/lib/utils";
+import { LGA_OPTIONS, type LgaOption } from "@/lib/lgas.generated";
 import {
   MapPin,
   Search,
@@ -81,29 +82,6 @@ function mapsUrl(lat: number, lng: number) {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
-/**
- * LGAs the app prices against - mirrors `lgas` + `outerLGA` in
- * lib/core/utils/inspection_pricing.dart. An area must map to one of these:
- * the chosen LGA is what decides the inspection fee, and the app rejects any
- * remote entry whose LGA it doesn't recognise.
- */
-const LGA_OPTIONS: { value: string; label: string }[] = [
-  { value: "ikorodu", label: "Ikorodu LGA" },
-  { value: "kosofe", label: "Kosofe LGA" },
-  { value: "shomolu", label: "Shomolu LGA" },
-  { value: "ikeja", label: "Ikeja LGA" },
-  { value: "ojodu_lcda", label: "Ojodu LCDA" },
-  { value: "agege", label: "Agege LGA" },
-  { value: "ifako_ijaiye", label: "Ifako-Ijaiye LGA" },
-  { value: "alimosho", label: "Alimosho LGA" },
-  { value: "oshodi_isolo", label: "Oshodi-Isolo LGA" },
-  { value: "mushin", label: "Mushin LGA" },
-  { value: "surulere", label: "Surulere LGA" },
-  { value: "yaba_mainland", label: "Yaba / Mainland LGA" },
-  { value: "eti_osa", label: "Eti-Osa LGA" },
-  { value: "lagos_island", label: "Lagos Island LGA" },
-  { value: "outer", label: "Outer Lagos" },
-];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -118,6 +96,23 @@ export default function UnknownAreasPage() {
   // Row currently being assigned an LGA, and the LGA picked for it.
   const [addingFor, setAddingFor] = useState<AreaRequest | null>(null);
   const [pickedLga, setPickedLga] = useState("");
+  // LGAs published to config/areas since the last app release, so a new state
+  // can be opened without one. Merged over the generated list below.
+  const [remoteLgas, setRemoteLgas] = useState<LgaOption[]>([]);
+  const [newLga, setNewLga] = useState<{ label: string; state: string } | null>(null);
+  const [lgaError, setLgaError] = useState<string | null>(null);
+
+  // Any LGA an admin published earlier (config/areas.lgas). The app accepts an
+  // area only when it knows its LGA, so the two lists have to agree.
+  useEffect(() => {
+    return onSnapshot(doc(db, "config", "areas"), (snap) => {
+      const raw = snap.data()?.lgas ?? {};
+      const extra: LgaOption[] = Object.entries(raw as Record<string, { label?: string; state?: string }>)
+        .filter(([, meta]) => meta?.label && meta?.state)
+        .map(([value, meta]) => ({ value, label: meta.label!, state: meta.state! }));
+      setRemoteLgas(extra.filter((e) => !LGA_OPTIONS.some((o) => o.value === e.value)));
+    });
+  }, []);
 
   // ── Real-time listener ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -222,6 +217,51 @@ export default function UnknownAreasPage() {
       }
       await batch.commit();
       setAddingFor(null);
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  /**
+   * Publishes a new LGA into `config/areas.lgas`, then files the area into it.
+   *
+   * The state is required and is what the listing saves: an LGA with no state
+   * is dropped by the app on purpose, because 39 out-of-state cities once sat
+   * under "Other areas" and every one of them saved as "Lagos".
+   */
+  async function publishLga(request: AreaRequest, label: string, state: string) {
+    if (!canWrite) return;
+    const trimmedLabel = label.trim();
+    const trimmedState = state.trim();
+    if (!trimmedLabel || !trimmedState) return;
+    const value = trimmedLabel
+      .toLowerCase()
+      .replace(/lga|lcda|\(.*\)/g, "")
+      .trim()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "");
+    if (!value) {
+      setLgaError("Give the LGA a name with letters in it.");
+      return;
+    }
+    if (LGA_OPTIONS.some((o) => o.value === value)) {
+      setLgaError(`The app already has ${value}. Pick it from the list instead.`);
+      return;
+    }
+    setLgaError(null);
+    setUpdating(request.id);
+    try {
+      await setDoc(
+        doc(db, "config", "areas"),
+        {
+          lgas: { [value]: { label: trimmedLabel, state: trimmedState } },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      setNewLga(null);
+      setPickedLga(value);
+      await publishArea(request, value);
     } finally {
       setUpdating(null);
     }
@@ -434,12 +474,69 @@ export default function UnknownAreasPage() {
               className="w-full rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--background))] px-3 py-2 text-sm text-[rgb(var(--text-primary))] mb-4"
             >
               <option value="">Select an LGA…</option>
-              {LGA_OPTIONS.map((o) => (
+              {[...LGA_OPTIONS, ...remoteLgas].map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
+                  {o.state ? ` — ${o.state}` : ""}
                 </option>
               ))}
             </select>
+
+            {newLga ? (
+              <div className="rounded-lg border border-[rgb(var(--border))] p-3 mb-4">
+                <p className="text-xs text-[rgb(var(--text-secondary))] mb-2">
+                  New local government. The state is what a listing here will
+                  save, so it has to be right.
+                </p>
+                <input
+                  autoFocus
+                  value={newLga.label}
+                  onChange={(e) => setNewLga({ ...newLga, label: e.target.value })}
+                  placeholder="Name, e.g. Ado-Odo/Ota LGA (Ogun)"
+                  className="w-full rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--background))] px-3 py-2 text-sm text-[rgb(var(--text-primary))] mb-2"
+                />
+                <input
+                  value={newLga.state}
+                  onChange={(e) => setNewLga({ ...newLga, state: e.target.value })}
+                  placeholder="State, e.g. Ogun"
+                  className="w-full rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--background))] px-3 py-2 text-sm text-[rgb(var(--text-primary))]"
+                />
+                {lgaError && (
+                  <p className="text-xs text-[rgb(var(--error))] mt-2">{lgaError}</p>
+                )}
+                <div className="flex gap-2 justify-end mt-3">
+                  <button
+                    className="px-3 py-1.5 rounded-lg text-sm text-[rgb(var(--text-secondary))]"
+                    onClick={() => {
+                      setNewLga(null);
+                      setLgaError(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={
+                      !newLga.label.trim() ||
+                      !newLga.state.trim() ||
+                      updating === addingFor.id
+                    }
+                    onClick={() => publishLga(addingFor, newLga.label, newLga.state)}
+                    className="px-3 py-1.5 rounded-lg text-sm bg-[rgb(var(--brand))] text-white disabled:opacity-40"
+                  >
+                    {updating === addingFor.id
+                      ? "Publishing…"
+                      : "Add LGA and file the area"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="text-xs text-[rgb(var(--brand))] mb-4"
+                onClick={() => setNewLga({ label: "", state: "" })}
+              >
+                The LGA is not listed either
+              </button>
+            )}
 
             <p className="text-[11px] text-[rgb(var(--text-hint))] mb-4">
               Publishes to <code>config/areas</code>. Landlords see it the next
