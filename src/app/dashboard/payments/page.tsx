@@ -142,7 +142,7 @@ export default function PaymentsPage() {
           paymentStatus: data.paymentStatus || "pending_verification",
           refundReason: data.refundReason,
           paidAt: parseTimestamp(data.paidAt),
-          verifiedAt: parseTimestamp(data.paymentVerifiedAt),
+          verifiedAt: parseTimestamp(data.paidAt),
           refundedAt: parseTimestamp(data.refundedAt),
           createdAt: parseTimestamp(data.createdAt) || new Date(),
         };
@@ -151,11 +151,15 @@ export default function PaymentsPage() {
       merge();
     });
 
-    // Rent payments - rental_interests with status paymentUploaded or paymentVerified
+    // Rent payments. Under pay-after-accept the tenant pays only once the
+    // agreement is finalized, and the Paystack webhook is what confirms it -
+    // there is nothing for an admin to verify. This used to query the
+    // pay-first states (payment_uploaded / payment_verified / rejected /
+    // lost_to_other), which nothing writes any more, so the section was
+    // permanently empty and the rent that HAD been paid never showed.
     const rentQ = query(
       collection(db, "rental_interests"),
-      where("status", "in",
-        ["payment_uploaded", "payment_verified", "rejected", "lost_to_other"]),
+      where("status", "==", "rent_paid"),
       orderBy("createdAt", "desc")
     );
 
@@ -177,12 +181,7 @@ export default function PaymentsPage() {
           amount: (data.paymentAmount || 0) as number,
           paymentProofUrl: data.paymentProofUrl,
           paymentReference: data.paymentReference,
-          paymentStatus:
-            data.status === "payment_uploaded"
-              ? "pending_verification"
-              : data.status === "payment_verified"
-              ? "paid"
-              : "refunded",
+          paymentStatus: "paid",
           refundReason: data.refundReason,
           paidAt: parseTimestamp(data.paidAt),
           verifiedAt: parseTimestamp(data.paymentVerifiedAt),
@@ -312,14 +311,9 @@ export default function PaymentsPage() {
           isAvailable: true,
           updatedAt: serverTimestamp(),
         });
-      } else {
-        await updateDoc(doc(db, "rental_interests", payment.id), {
-          status: "payment_verified",
-          isPaymentVerified: true,
-          paymentVerifiedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
       }
+      // No rent branch: rent is confirmed by the Paystack webhook, so a rent
+      // row is only ever listed as already paid and never reaches Approve.
       if (selectedPayment?.id === payment.id) setSelectedPayment(null);
     } finally {
       setProcessing((s) => {
@@ -350,14 +344,9 @@ export default function PaymentsPage() {
           isAvailable: false,
           updatedAt: serverTimestamp(),
         });
-      } else {
-        await updateDoc(doc(db, "rental_interests", payment.id), {
-          status: "rejected",
-          refundReason: reason,
-          refundedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
       }
+      // Same for Reject: a paid rent is reversed through the refunds queue,
+      // not by writing a rejected status back onto the interest.
       if (selectedPayment?.id === payment.id) setSelectedPayment(null);
     } finally {
       setProcessing((s) => {
