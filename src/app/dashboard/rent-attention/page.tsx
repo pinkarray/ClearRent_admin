@@ -22,9 +22,14 @@ import {
 
 // ─── Rent Attention (money-flow gaps G1/G3/G4) ───────────────────────────────
 // Surfaces the rent states where money is stuck and a human needs to act:
-//   • Stranded - tenant paid + admin-verified, but the landlord never accepted
-//     (rental_interests at payment_verified). The strand sweep flags the aged
-//     ones; admin chases the landlord or refunds the tenant out-of-band.
+//   • Stranded - the landlord accepted but the rent has never been paid
+//     (rental_interests at accepted). Under pay-after-accept this is the limbo
+//     that holds a property off the market with no money moved; the strand
+//     sweep (rent_interest_ops) reminds both parties on days 3 and 6, flags
+//     `strandedForReview` on day 7, and auto-releases only when the agreement
+//     was finalized and the tenant still did not pay. The flagged ones are the
+//     ones a human has to chase. This watched `payment_verified` until the
+//     pay-first flow was retired, and nothing has written that since.
 //   • Unaccepted - the landlord sent the agreement and the tenant hasn't acted
 //     (active_rentals agreementStatus == pending_review). Rent can't be paid
 //     until it's finalized, so a stalled one silently halts the whole funnel.
@@ -41,7 +46,7 @@ interface Stranded {
   landlordName: string;
   propertyTitle: string;
   rentAmount: number;
-  verifiedAt: Date | null;
+  acceptedAt: Date | null;
   strandedForReview: boolean;
 }
 
@@ -90,7 +95,7 @@ export default function RentAttentionPage() {
 
   useEffect(() => {
     const unsubStranded = onSnapshot(
-      query(collection(db, "rental_interests"), where("status", "==", "payment_verified")),
+      query(collection(db, "rental_interests"), where("status", "==", "accepted")),
       (snap) => {
         setStranded(
           snap.docs.map((d) => {
@@ -103,7 +108,7 @@ export default function RentAttentionPage() {
               landlordName: (x.landlordName as string) || "Landlord",
               propertyTitle: (x.propertyTitle as string) || "Property",
               rentAmount: (x.rentAmount as number) ?? (x.paymentAmount as number) ?? 0,
-              verifiedAt: toDate(x.paymentVerifiedAt) ?? toDate(x.updatedAt),
+              acceptedAt: toDate(x.acceptedAt) ?? toDate(x.updatedAt),
               strandedForReview: x.strandedForReview === true,
             };
           })
@@ -174,7 +179,7 @@ export default function RentAttentionPage() {
       [...stranded].sort(
         (a, b) =>
           Number(b.strandedForReview) - Number(a.strandedForReview) ||
-          (a.verifiedAt?.getTime() ?? 0) - (b.verifiedAt?.getTime() ?? 0)
+          (a.acceptedAt?.getTime() ?? 0) - (b.acceptedAt?.getTime() ?? 0)
       ),
     [stranded]
   );
@@ -197,13 +202,14 @@ export default function RentAttentionPage() {
           Rent Attention
         </h1>
         <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-          Rentals where money is stuck and needs a human: tenants who paid but
-          the landlord never accepted, and disputed agreements holding a payout.
+          Rentals where a deal is stuck and needs a human: accepted tenants who
+          have not paid, agreements the tenant has not acted on, and disputes
+          holding a payout.
         </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="Awaiting landlord" value={stranded.length} tone="amber" icon={Hourglass} />
+        <StatTile label="Accepted, unpaid" value={stranded.length} tone="amber" icon={Hourglass} />
         <StatTile label="Stranded (flagged)" value={flaggedCount} tone="red" icon={AlertTriangle} />
         <StatTile label="Agreement unaccepted" value={unaccepted.length} tone="amber" icon={FileSignature} />
         <StatTile label="Disputed (payout held)" value={disputed.length} tone="red" icon={Gavel} />
@@ -219,11 +225,11 @@ export default function RentAttentionPage() {
           <section className="space-y-3">
             <SectionHeader
               icon={Hourglass}
-              title="Paid - awaiting landlord acceptance"
+              title="Accepted - awaiting rent payment"
               count={strandedSorted.length}
             />
             {strandedSorted.length === 0 ? (
-              <EmptyNote text="No tenants waiting on a landlord right now." />
+              <EmptyNote text="Every accepted tenant has paid their rent." />
             ) : (
               strandedSorted.map((s) => (
                 <StrandedCard key={s.id} item={s} router={router} />
@@ -265,7 +271,7 @@ export default function RentAttentionPage() {
 // ─── Cards ───────────────────────────────────────────────────────────────────
 
 function StrandedCard({ item, router }: { item: Stranded; router: ReturnType<typeof useRouter> }) {
-  const waiting = daysSince(item.verifiedAt);
+  const waiting = daysSince(item.acceptedAt);
   return (
     <div className={cn("card", item.strandedForReview && "border-red-500/30")}>
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -293,13 +299,14 @@ function StrandedCard({ item, router }: { item: Stranded; router: ReturnType<typ
           <p className="font-mono font-semibold text-sm text-[rgb(var(--text-primary))]">
             {naira(item.rentAmount)}
           </p>
-          <p className="text-[11px] text-[rgb(var(--text-hint))]">tenant paid</p>
+          <p className="text-[11px] text-[rgb(var(--text-hint))]">rent due</p>
         </div>
       </div>
       <p className="mt-3 pt-3 border-t border-[rgb(var(--border))] text-xs text-[rgb(var(--text-hint))] flex items-start gap-1.5">
         <ShieldQuestion size={13} className="shrink-0 mt-0.5" />
-        Chase the landlord to accept, or refund the tenant. No money moves
-        automatically - this is a review queue.
+        Chase the landlord to finalize the agreement, or the tenant to pay.
+        Nothing has been charged, and the sweep releases the property on day 7
+        if the agreement was finalized and the rent still was not paid.
       </p>
     </div>
   );
