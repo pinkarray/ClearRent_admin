@@ -840,14 +840,18 @@ function PropertyDetailPanel({
   // subdoc (reveal-on-approval, Phase 2b). Admin is entitled - fetch it for the
   // detail view. Falls back to area-level while loading / if absent.
   const [exactAddress, setExactAddress] = useState<string | null>(null);
+  const [pin, setPin] = useState<PinInfo | null>(null);
   useEffect(() => {
     let active = true;
     setExactAddress(null);
+    setPin(null);
     getDoc(doc(db, "properties", property.id, "private", "location"))
       .then((snap) => {
         if (!active) return;
-        const addr = snap.data()?.address;
+        const data = snap.data();
+        const addr = data?.address;
         if (typeof addr === "string" && addr.length > 0) setExactAddress(addr);
+        if (data) setPin(readPin(data));
       })
       .catch(() => {
         /* not entitled / absent - leave area-level */
@@ -1005,6 +1009,7 @@ function PropertyDetailPanel({
               }
             />
             <DetailRow icon={MapPin} label="City" value={`${property.city}, ${property.state}`} />
+            <PinPanel pin={pin} />
             {/* Says what the reviewer is actually deciding. The state is
                 derived from the landlord's map pin, not typed, so it is not a
                 typo - it is a real address outside where we operate. */}
@@ -1567,6 +1572,77 @@ function UtilityBillLink({ landlordId }: { landlordId: string }) {
             Open the document
           </a>
         ))}
+    </div>
+  );
+}
+
+// The listing pin, and whether someone stood there and confirmed it from their
+// phone's GPS (confirmPropertyPin). A hand-dropped pin can be anywhere; video
+// viewings check the handler's presence against the confirmed one.
+type PinInfo = {
+  lat: number | null;
+  lng: number | null;
+  confirmedAt: Date | null;
+  confirmedRole: string | null;
+  accuracyM: number | null;
+  stillMatches: boolean;
+};
+
+function readPin(d: Record<string, any>): PinInfo {
+  const lat = typeof d.latitude === "number" ? d.latitude : null;
+  const lng = typeof d.longitude === "number" ? d.longitude : null;
+  const c = d.confirmedPin;
+  return {
+    lat,
+    lng,
+    confirmedAt: c ? parseTimestamp(c.confirmedAt) ?? null : null,
+    confirmedRole: c?.role ?? null,
+    accuracyM: typeof c?.accuracyM === "number" ? c.accuracyM : null,
+    // The CF writes both together; any difference means it was moved by hand.
+    stillMatches: !!c && c.latitude === lat && c.longitude === lng,
+  };
+}
+
+function PinPanel({ pin }: { pin: PinInfo | null }) {
+  if (!pin) return null;
+  if (pin.lat === null || pin.lng === null) {
+    return (
+      <p className="text-xs text-[rgb(var(--text-hint))]">
+        No map pin. Listings created on the website carry none until someone
+        confirms it on site from the app.
+      </p>
+    );
+  }
+  const d = 0.004; // about 450m either side
+  const bbox = [pin.lng - d, pin.lat - d, pin.lng + d, pin.lat + d].join(",");
+  const status = pin.confirmedAt && pin.stillMatches
+    ? {
+        tone: "text-[rgb(var(--success))]",
+        text: `Confirmed on site by the ${pin.confirmedRole ?? "handler"}, ${timeAgo(pin.confirmedAt)}` +
+          (pin.accuracyM !== null ? `, accurate to about ${pin.accuracyM}m` : ""),
+      }
+    : pin.confirmedAt
+    ? { tone: "text-[rgb(var(--warning))]", text: "Moved by hand after it was confirmed on site" }
+    : { tone: "text-[rgb(var(--warning))]", text: "Not confirmed on site: dropped on a map, may be wrong" };
+  return (
+    <div className="space-y-2">
+      <iframe
+        title="Listing pin"
+        className="w-full h-48 rounded-lg border border-[rgb(var(--border))]"
+        loading="lazy"
+        src={`https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${pin.lat},${pin.lng}`}
+      />
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className={status.tone}>{status.text}</span>
+        <a
+          className="text-[rgb(var(--primary))] hover:underline shrink-0"
+          href={`https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open in Google Maps
+        </a>
+      </div>
     </div>
   );
 }
