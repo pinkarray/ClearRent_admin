@@ -1009,7 +1009,15 @@ function PropertyDetailPanel({
               }
             />
             <DetailRow icon={MapPin} label="City" value={`${property.city}, ${property.state}`} />
-            <PinPanel pin={pin} />
+            <PinPanel
+              pin={pin}
+              onAccept={async () => {
+                await httpsCallable(functions, "acceptPinRefusal")({ propertyId: property.id });
+                const snap = await getDoc(doc(db, "properties", property.id, "private", "location"));
+                const data = snap.data();
+                if (data) setPin(readPin(data));
+              }}
+            />
             {/* Says what the reviewer is actually deciding. The state is
                 derived from the landlord's map pin, not typed, so it is not a
                 typo - it is a real address outside where we operate. */}
@@ -1586,12 +1594,23 @@ type PinInfo = {
   confirmedRole: string | null;
   accuracyM: number | null;
   stillMatches: boolean;
+  // The last confirmation refused for being over 1km from the map pin. The
+  // app tells the landlord to contact support, which lands here.
+  refusal: {
+    lat: number;
+    lng: number;
+    awayM: number;
+    accuracyM: number | null;
+    role: string | null;
+    at: Date | null;
+  } | null;
 };
 
 function readPin(d: Record<string, any>): PinInfo {
   const lat = typeof d.latitude === "number" ? d.latitude : null;
   const lng = typeof d.longitude === "number" ? d.longitude : null;
   const c = d.confirmedPin;
+  const r = d.lastPinRefusal;
   return {
     lat,
     lng,
@@ -1600,11 +1619,22 @@ function readPin(d: Record<string, any>): PinInfo {
     accuracyM: typeof c?.accuracyM === "number" ? c.accuracyM : null,
     // The CF writes both together; any difference means it was moved by hand.
     stillMatches: !!c && c.latitude === lat && c.longitude === lng,
+    refusal: r && typeof r.latitude === "number" && typeof r.longitude === "number"
+      ? {
+          lat: r.latitude,
+          lng: r.longitude,
+          awayM: typeof r.awayM === "number" ? r.awayM : 0,
+          accuracyM: typeof r.accuracyM === "number" ? r.accuracyM : null,
+          role: r.role ?? null,
+          at: parseTimestamp(r.at) ?? null,
+        }
+      : null,
   };
 }
 
-function PinPanel({ pin }: { pin: PinInfo | null }) {
+function PinPanel({ pin, onAccept }: { pin: PinInfo | null; onAccept: () => Promise<void> }) {
   if (!pin) return null;
+  const refusal = pin.refusal ? <PinRefusal refusal={pin.refusal} onAccept={onAccept} /> : null;
   if (pin.lat === null || pin.lng === null) {
     return (
       <p className="text-xs text-[rgb(var(--text-hint))]">
@@ -1643,6 +1673,62 @@ function PinPanel({ pin }: { pin: PinInfo | null }) {
           Open in Google Maps
         </a>
       </div>
+      {refusal}
+    </div>
+  );
+}
+
+function PinRefusal({
+  refusal,
+  onAccept,
+}: {
+  refusal: NonNullable<PinInfo["refusal"]>;
+  onAccept: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const km = (refusal.awayM / 1000).toFixed(1);
+  return (
+    <div className="rounded-lg border border-[rgb(var(--warning))]/40 bg-[rgb(var(--warning))]/5 p-3 text-xs space-y-2">
+      <p className="text-[rgb(var(--text-primary))]">
+        <strong>Pin confirmation refused</strong>
+        {refusal.at ? ` ${timeAgo(refusal.at)}` : ""}: the {refusal.role ?? "handler"}&apos;s phone
+        was {km}km from the map pin
+        {refusal.accuracyM !== null ? `, accurate to about ${refusal.accuracyM}m` : ""}. The app
+        told them to contact support.
+      </p>
+      <p className="text-[rgb(var(--text-secondary))]">
+        If the phone&apos;s location matches the address above, the map pin was wrong: accept it.
+        If it is somewhere else, they were not at the property: leave it.
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <a
+          className="text-[rgb(var(--primary))] hover:underline"
+          href={`https://www.google.com/maps/search/?api=1&query=${refusal.lat},${refusal.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          See where the phone was
+        </a>
+        <button
+          className="rounded-md bg-[rgb(var(--primary))] px-3 py-1.5 text-white disabled:opacity-50"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              await onAccept();
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "Could not accept it.");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Accepting..." : "Accept the phone's location"}
+        </button>
+      </div>
+      {error && <p className="text-[rgb(var(--error))]">{error}</p>}
     </div>
   );
 }
