@@ -19,6 +19,7 @@ import {
 } from "firebase/auth";
 import { cn } from "@/lib/utils";
 import { PushToggle } from "@/components/notifications/push-toggle";
+import PlatformSwitches from "@/components/PlatformSwitches";
 import {
   Settings,
   User,
@@ -45,6 +46,7 @@ type ActiveSection =
   | "password"
   | "notifications"
   | "appearance"
+  | "platform"
   | "about";
 
 interface AdminProfile {
@@ -62,6 +64,7 @@ export default function SettingsPage() {
     { id: "password",   label: "Password",   icon: Lock,    desc: "Change your password" },
     { id: "notifications", label: "Notifications", icon: Bell, desc: "Alerts on this device" },
     { id: "appearance", label: "Appearance", icon: Palette, desc: "Theme preferences" },
+    { id: "platform",   label: "Platform",   icon: Shield,  desc: "Privacy and public record switches" },
     { id: "about",      label: "About",      icon: Info,    desc: "App version and info" },
   ];
 
@@ -114,6 +117,7 @@ export default function SettingsPage() {
           {activeSection === "password"   && <PasswordSection />}
           {activeSection === "notifications" && <PushToggle />}
           {activeSection === "appearance" && <AppearanceSection />}
+          {activeSection === "platform"   && <PlatformSwitches />}
           {activeSection === "about"      && <AboutSection />}
         </div>
       </div>
