@@ -60,6 +60,8 @@ interface Issue {
   propertyTitle: string;
   // Media
   images: string[];
+  /** Private Storage paths (issues/{uid}/...), shown via getIssuePhotoUrl. */
+  photoPaths: string[];
   // Timestamps
   createdAt: Date;
   updatedAt?: Date;
@@ -157,6 +159,7 @@ export default function IssuesPage() {
           propertyId: data.propertyId || "",
           propertyTitle: data.propertyTitle || "Unknown Property",
           images: data.images || [],
+          photoPaths: data.photoPaths || [],
           createdAt: parseTimestamp(data.createdAt) || new Date(),
           updatedAt: parseTimestamp(data.updatedAt),
           resolvedAt: parseTimestamp(data.resolvedAt),
@@ -608,6 +611,29 @@ function IssueDetailPanel({ issue, onClose }: { issue: Issue; onClose: () => voi
   const cat = CATEGORY_CONFIG[issue.category] || CATEGORY_CONFIG.other;
   const CatIcon = cat.icon;
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
+  // Legacy issues carry public URLs in `images`; newer ones keep photos in
+  // private Storage and need a short-lived link each.
+  const [signedPhotos, setSignedPhotos] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setSignedPhotos([]);
+    if (issue.photoPaths.length === 0) return;
+    const fn = httpsCallable<{ issueId: string; path: string }, { url: string }>(
+      functions,
+      "getIssuePhotoUrl",
+    );
+    Promise.all(
+      issue.photoPaths.map((path) =>
+        fn({ issueId: issue.id, path }).then((r) => r.data.url).catch(() => null),
+      ),
+    ).then((urls) => {
+      if (!cancelled) setSignedPhotos(urls.filter((u): u is string => !!u));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [issue.id, issue.photoPaths]);
+  const photos = [...issue.images, ...signedPhotos];
 
   return (
     <>
@@ -648,13 +674,13 @@ function IssueDetailPanel({ issue, onClose }: { issue: Issue; onClose: () => voi
           )}
 
           {/* Images */}
-          {issue.images.length > 0 && (
+          {photos.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-xs font-medium text-[rgb(var(--text-hint))] uppercase tracking-wider">
-                Photos ({issue.images.length})
+                Photos ({photos.length})
               </h4>
               <div className="grid grid-cols-2 gap-2">
-                {issue.images.map((url, i) => (
+                {photos.map((url, i) => (
                   <div
                     key={i}
                     className="relative aspect-square rounded-xl overflow-hidden bg-[rgb(var(--background))] cursor-pointer group"
