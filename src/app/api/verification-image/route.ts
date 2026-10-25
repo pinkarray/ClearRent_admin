@@ -33,14 +33,16 @@ export async function GET(req: NextRequest) {
   // 3. Validate the path. Only private verification/*, ownership/* (C of O /
   // deed), agreements/* and payout-proof/* objects are servable here - all
   // admin-readable PII. payout-proof/* is the transfer evidence an admin
-  // attaches when resolving a "the payout never arrived" dispute.
+  // attaches when resolving a "the payout never arrived" dispute. issues/* are
+  // the photos tenants attach to an issue - the inside of someone's home.
   const path = req.nextUrl.searchParams.get("path");
   if (
     !path ||
     (!path.startsWith("verification/") &&
       !path.startsWith("ownership/") &&
       !path.startsWith("agreements/") &&
-      !path.startsWith("payout-proof/"))
+      !path.startsWith("payout-proof/") &&
+      !path.startsWith("issues/"))
   ) {
     return new Response("Bad Request", { status: 400 });
   }

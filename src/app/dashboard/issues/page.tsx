@@ -8,7 +8,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { db, functions } from "@/lib/firebase";
+import { auth, db, functions } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { parseTimestamp } from "@/types";
 import { cn, timeAgo } from "@/lib/utils";
@@ -612,25 +612,33 @@ function IssueDetailPanel({ issue, onClose }: { issue: Issue; onClose: () => voi
   const CatIcon = cat.icon;
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
   // Legacy issues carry public URLs in `images`; newer ones keep photos in
-  // private Storage and need a short-lived link each.
+  // private Storage, streamed through the admin-guarded route (the app's
+  // getIssuePhotoUrl needs App Check, which this dashboard does not run).
   const [signedPhotos, setSignedPhotos] = useState<string[]>([]);
   useEffect(() => {
     let cancelled = false;
+    const made: string[] = [];
     setSignedPhotos([]);
     if (issue.photoPaths.length === 0) return;
-    const fn = httpsCallable<{ issueId: string; path: string }, { url: string }>(
-      functions,
-      "getIssuePhotoUrl",
-    );
-    Promise.all(
-      issue.photoPaths.map((path) =>
-        fn({ issueId: issue.id, path }).then((r) => r.data.url).catch(() => null),
-      ),
-    ).then((urls) => {
+    (async () => {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      const urls = await Promise.all(
+        issue.photoPaths.map(async (path) => {
+          const res = await fetch(`/api/verification-image?path=${encodeURIComponent(path)}`, {
+            headers: { Authorization: `Bearer ${idToken}` },
+          }).catch(() => null);
+          if (!res?.ok) return null;
+          const url = URL.createObjectURL(await res.blob());
+          made.push(url);
+          return url;
+        }),
+      );
       if (!cancelled) setSignedPhotos(urls.filter((u): u is string => !!u));
-    });
+    })();
     return () => {
       cancelled = true;
+      made.forEach((u) => URL.revokeObjectURL(u));
     };
   }, [issue.id, issue.photoPaths]);
   const photos = [...issue.images, ...signedPhotos];
