@@ -175,7 +175,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main
         className={cn(
-          "flex-1 min-h-screen transition-all duration-300",
+          // min-w-0: a flex child defaults to min-width:auto, so one long
+          // unbreakable string (an email, a uid) widened every page past
+          // the screen on a phone.
+          "flex-1 min-w-0 min-h-screen transition-all duration-300",
           collapsed ? "lg:ml-[72px]" : "lg:ml-64"
         )}
       >
