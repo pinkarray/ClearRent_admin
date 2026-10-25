@@ -40,6 +40,7 @@ import {
   FileText,
   Users,
   BarChart2,
+  Sofa,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -125,6 +126,8 @@ interface Property {
   // about the arrangement, not the type - a self contain in a compound can
   // still share a toilet - so these are set for any unit, and absent when the
   // whole property is let.
+  // 'unfurnished' | 'partly' | 'fully'; absent on listings from before it.
+  furnishing?: string;
   bathroomAccess?: string;
   toiletAccess?: string;
   kitchenAccess?: string;
@@ -330,6 +333,7 @@ export default function PropertiesPage() {
           buildingId: data.buildingId,
           unitLabel: data.unitLabel,
           floor: data.floor,
+          furnishing: data.furnishing,
           bathroomAccess: data.bathroomAccess,
           toiletAccess: data.toiletAccess,
           kitchenAccess: data.kitchenAccess,
@@ -1080,6 +1084,11 @@ function PropertyDetailPanel({
                 }`}
               />
             )}
+            <DetailRow
+              icon={Sofa}
+              label="Furnishing"
+              value={FURNISHING_LABELS[property.furnishing ?? ""] ?? "Not stated"}
+            />
             <DetailRow icon={Users} label="Occupancy" value={`${property.currentTenantsCount || 0} / ${property.maxTenants} tenants`} />
             <DetailRow icon={Home} label="Rent" value={`${formatNaira(property.rent)} / ${property.rentFrequency === "yearly" ? "year" : "month"}`} />
             <DetailRow
@@ -1732,6 +1741,12 @@ function PinRefusal({
     </div>
   );
 }
+
+const FURNISHING_LABELS: Record<string, string> = {
+  unfurnished: "Unfurnished",
+  partly: "Partly furnished",
+  fully: "Fully furnished",
+};
 
 function DetailRow({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
   return (
