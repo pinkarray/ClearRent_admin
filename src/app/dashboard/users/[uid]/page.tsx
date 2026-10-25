@@ -11,6 +11,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import LandlordStanding from "@/components/LandlordStanding";
 import { parseTimestamp } from "@/types";
 import { cn, capitalize } from "@/lib/utils";
 import {
@@ -467,6 +468,8 @@ export default function UserProfilePage() {
           <Stat label="Refunds" value={graph.refunds.length} icon={RotateCcw} />
         </div>
       </div>
+
+      {user.accountType === "landlord" && <LandlordStanding uid={uid} />}
 
       {/* Owns (landlord) */}
       {graph.owned.length > 0 && (
