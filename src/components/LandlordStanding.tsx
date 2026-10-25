@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { AlertCircle, ShieldAlert } from "lucide-react";
 import { db, functions } from "@/lib/firebase";
@@ -37,6 +37,9 @@ type Standing = {
   reason: string;
   overdueNow: number;
   escalations: Escalation[];
+  record: { received: number; answeredInTime: number; escalated: number };
+  /** This landlord's issue record is public regardless of the platform switch. */
+  showRecord: boolean;
 };
 
 const DURATIONS: Array<[days: number, label: string]> = [
@@ -83,6 +86,12 @@ async function loadStanding(uid: string): Promise<Standing> {
     reason: String(d.listingSuspendedReason ?? ""),
     overdueNow: Array.isArray(d.overdueUrgentIssues) ? d.overdueUrgentIssues.length : 0,
     escalations,
+    record: {
+      received: Number(d.issueRecord?.received ?? 0),
+      answeredInTime: Number(d.issueRecord?.answeredInTime ?? 0),
+      escalated: Number(d.issueRecord?.escalated ?? 0),
+    },
+    showRecord: d.showIssueRecord === true,
   };
 }
 
@@ -129,6 +138,22 @@ export default function LandlordStanding({ uid }: { uid: string }) {
     }
   };
 
+  // Make one landlord's record public without the platform-wide switch, so a
+  // repeat offender can be named without naming everyone.
+  const toggleRecord = async () => {
+    if (!standing) return;
+    setBusy(true);
+    setError("");
+    try {
+      await updateDoc(doc(db, "users", uid), { showIssueRecord: !standing.showRecord });
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That did not save.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!standing) {
     return error ? <div className="card text-sm text-red-500">{error}</div> : null;
   }
@@ -161,6 +186,19 @@ export default function LandlordStanding({ uid }: { uid: string }) {
         </span>
         {standing.escalations[0] && (
           <span className="badge badge-neutral">Last: {fmt(standing.escalations[0].createdAt)}</span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[rgb(var(--border))] px-3 py-2">
+        <p className="text-sm text-[rgb(var(--text-secondary))]">
+          Issue record: answered {standing.record.answeredInTime} of {standing.record.received} in time
+          {standing.record.escalated > 0 ? `, ${standing.record.escalated} escalated` : ""}.{" "}
+          {standing.showRecord ? "Shown publicly on their listings." : "Not shown publicly for this landlord."}
+        </p>
+        {canWrite && (
+          <button className="btn-secondary text-sm" disabled={busy} onClick={toggleRecord}>
+            {standing.showRecord ? "Hide record" : "Show record publicly"}
+          </button>
         )}
       </div>
 

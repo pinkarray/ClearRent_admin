@@ -45,7 +45,7 @@ const SWITCHES: Switch[] = [
     docId: "features",
     field: "publicLandlordRecord",
     label: "Show landlords' issue response record",
-    desc: "Listings show how many tenant issues the landlord answered in time.",
+    desc: "Every landlord's listings show how many tenant issues they answered in time. To name one landlord only, leave this off and use the switch on their profile's Standing card.",
   },
   {
     docId: "features",
