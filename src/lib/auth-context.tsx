@@ -9,13 +9,12 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
-export type AdminRole = "superAdmin" | "admin" | "viewer";
+export type AdminRole = "superAdmin" | "admin";
 
 /** Resolve the effective admin-panel role from a user's custom claims. */
 function roleFromClaims(claims: Record<string, unknown>): AdminRole | null {
   if (claims.superAdmin === true) return "superAdmin";
   if (claims.admin === true) return "admin";
-  if (claims.viewer === true) return "viewer";
   return null;
 }
 
@@ -26,8 +25,6 @@ interface AuthContextType {
   isAdmin: boolean;
   /** May perform mutating actions (superAdmin or admin). */
   canWrite: boolean;
-  /** Signed in as a read-only viewer. */
-  isReadOnly: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
@@ -38,7 +35,6 @@ const AuthContext = createContext<AuthContextType>({
   role: null,
   isAdmin: false,
   canWrite: false,
-  isReadOnly: false,
   loading: true,
   signIn: async () => ({ success: false }),
   signOut: async () => {},
@@ -111,11 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = role !== null;
   const canWrite = role === "superAdmin" || role === "admin";
-  const isReadOnly = role === "viewer";
 
   return (
     <AuthContext.Provider
-      value={{ user, role, isAdmin, canWrite, isReadOnly, loading: effectiveLoading, signIn, signOut }}
+      value={{ user, role, isAdmin, canWrite, loading: effectiveLoading, signIn, signOut }}
     >
       {children}
     </AuthContext.Provider>

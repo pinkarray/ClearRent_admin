@@ -126,7 +126,6 @@ export default function SettingsPage() {
 const ROLE_LABELS: Record<string, string> = {
   superAdmin: "Super Admin",
   admin: "Admin",
-  viewer: "Read-only",
 };
 
 function ProfileSection() {

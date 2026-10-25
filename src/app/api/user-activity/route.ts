@@ -10,7 +10,7 @@ import { getAdminAuth } from "@/lib/firebase-admin";
 // unlike `lastSeenAt`, which the user's own device writes.
 //
 // Auth: same gate as /api/verification-image - a valid ID token belonging to an
-// admin, superAdmin, or read-only viewer. This is PII-adjacent (when someone
+// admin or superAdmin. This is PII-adjacent (when someone
 // last used the product), so it is never public.
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization") || "";
@@ -28,8 +28,7 @@ export async function POST(req: NextRequest) {
 
   if (
     claims.admin !== true &&
-    claims.superAdmin !== true &&
-    claims.viewer !== true
+    claims.superAdmin !== true
   ) {
     return new Response("Forbidden", { status: 403 });
   }
