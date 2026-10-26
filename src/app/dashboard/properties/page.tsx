@@ -128,6 +128,11 @@ interface Property {
   // whole property is let.
   // 'unfurnished' | 'partly' | 'fully'; absent on listings from before it.
   furnishing?: string;
+  // 'furnished' = 1 to 11 months paid up front; absent or 'yearly' otherwise.
+  stayType?: string;
+  minStayMonths?: number;
+  maxStayMonths?: number;
+  inventory?: { name: string; qty?: number; photoUrl?: string }[];
   bathroomAccess?: string;
   toiletAccess?: string;
   kitchenAccess?: string;
@@ -334,6 +339,10 @@ export default function PropertiesPage() {
           unitLabel: data.unitLabel,
           floor: data.floor,
           furnishing: data.furnishing,
+          stayType: data.stayType,
+          minStayMonths: data.minStayMonths,
+          maxStayMonths: data.maxStayMonths,
+          inventory: Array.isArray(data.inventory) ? data.inventory : [],
           bathroomAccess: data.bathroomAccess,
           toiletAccess: data.toiletAccess,
           kitchenAccess: data.kitchenAccess,
@@ -1089,6 +1098,26 @@ function PropertyDetailPanel({
               label="Furnishing"
               value={FURNISHING_LABELS[property.furnishing ?? ""] ?? "Not stated"}
             />
+            <DetailRow
+              icon={Home}
+              label="Let as"
+              value={
+                property.stayType === "furnished"
+                  ? `Furnished stay, ${property.minStayMonths} to ${property.maxStayMonths} months`
+                  : "Yearly lease"
+              }
+            />
+            {property.stayType === "furnished" && (
+              <DetailRow
+                icon={Sofa}
+                label="Included"
+                value={`${(property.inventory ?? [])
+                  .map((i) => `${i.name} x${i.qty ?? 1}`)
+                  .join(", ")} (${
+                  (property.inventory ?? []).filter((i) => i.photoUrl).length
+                } of ${(property.inventory ?? []).length} photographed)`}
+              />
+            )}
             <DetailRow icon={Users} label="Occupancy" value={`${property.currentTenantsCount || 0} / ${property.maxTenants} tenants`} />
             <DetailRow icon={Home} label="Rent" value={`${formatNaira(property.rent)} / ${property.rentFrequency === "yearly" ? "year" : "month"}`} />
             <DetailRow
