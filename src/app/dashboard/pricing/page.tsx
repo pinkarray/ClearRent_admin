@@ -27,6 +27,7 @@ const FALLBACK = {
   listing: 10000,
   inspectionTotal: 10000,
   dealFee: 5000,
+  extensionFee: 2500,
   minRent: 10000,
 };
 
@@ -85,6 +86,13 @@ const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
     key: "dealFee",
     label: "Deal completion fee",
     hint: "Per party on a completed rental - also sets the tenant's rent total",
+  },
+  {
+    key: "extensionFee",
+    label: "Furnished stay extension fee",
+    hint:
+      "Tenant pays this on top of the rent each time a furnished stay is " +
+      "extended. The landlord gets all of the rent; this covers Paystack's fee.",
   },
   {
     key: "minRent",
@@ -152,6 +160,7 @@ export default function PricingPage() {
               d.inspection?.total ?? FALLBACK.inspectionTotal
             ),
             dealFee: String(d.dealFee ?? FALLBACK.dealFee),
+            extensionFee: String(d.extensionFee ?? FALLBACK.extensionFee),
             minRent: String(d.minRent ?? FALLBACK.minRent),
           });
           setUpdatedAt(parseTimestamp(d.updatedAt));
@@ -199,6 +208,7 @@ export default function PricingPage() {
           listing: Number(values.listing),
           inspection: { total: Number(values.inspectionTotal) },
           dealFee: Number(values.dealFee),
+          extensionFee: Number(values.extensionFee),
           minRent: Number(values.minRent),
           updatedAt: serverTimestamp(),
           updatedBy: "admin-dashboard",
