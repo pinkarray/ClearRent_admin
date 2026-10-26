@@ -57,6 +57,8 @@ interface Handover {
   evidenceAt: Date | null;
   evidencePending: boolean;
   conditionConfirmedAt: Date | null;
+  // Furnished stay: the landlord's move-out check of each listed item.
+  itemCheck: { name: string; qty?: number; state: string; note?: string }[];
 }
 
 /** Stages that still hold a property off the market. */
@@ -123,6 +125,7 @@ export default function HandoversPage() {
             evidencePending: x.handoverEvidencePending === true,
             conditionConfirmedAt:
               parseTimestamp(x.handoverConditionConfirmedAt) ?? null,
+            itemCheck: Array.isArray(x.handoverInventory) ? x.handoverInventory : [],
           };
         })
       );
@@ -342,6 +345,18 @@ function HandoverCard({
             : "Landlord has not confirmed checking the unit"}
         </span>
       </div>
+
+      {h.itemCheck.length > 0 && (
+        <div className="mt-3 text-sm">
+          <span className="text-muted-foreground">Item check: </span>
+          {h.itemCheck.filter((i) => i.state !== "ok").length === 0
+            ? `all ${h.itemCheck.length} items marked fine`
+            : h.itemCheck
+                .filter((i) => i.state !== "ok")
+                .map((i) => `${i.name} ${i.state}${i.note ? ` (${i.note})` : ""}`)
+                .join("; ")}
+        </div>
+      )}
 
       {h.contested && h.contestStatement && (
         <blockquote className="mt-3 border-l-2 border-red-400 pl-3 text-sm">
