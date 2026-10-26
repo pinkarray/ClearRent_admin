@@ -29,6 +29,10 @@ export const RESOLVE_ON_PAGE: Record<string, string> = {
   // so it must not be dismissable from the feed - dismissing would hide money
   // someone says they never received while the dispute is still open.
   payout_disputed: "Rent Payouts",
+  // resolveMoveInReport closes this (alert hygiene sweep: done once the
+  // rental's moveInCheck is no longer 'reported'). Dismissing would hide a
+  // held payout and a tenant waiting on an answer.
+  move_in_reported: "Rent Payouts",
   // Approving or rejecting on the Verifications page closes this
   // (onVerificationDecided). Offering Dismiss here only ever hid a user who is
   // still blocked, waiting on a review that never happened.

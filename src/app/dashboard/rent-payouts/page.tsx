@@ -9,6 +9,7 @@ import { cn, timeAgo } from "@/lib/utils";
 import { Banknote, Search, X, Loader2, CheckCircle2, Clock, Copy, Phone, User, Building2, AlertTriangle, Landmark, UserCheck, History, ExternalLink,} from "lucide-react";
 import { MarkPaidModal } from "@/components/MarkPaidModal";
 import { ResolvePayoutDisputeModal } from "@/components/ResolvePayoutDisputeModal";
+import { MoveInHold, moveInHeld } from "@/components/MoveInHold";
 import { useAuth } from "@/lib/auth-context";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,13 @@ interface RentPayout {
   agentPayoutProofPath?: string;
 
   createdAt: Date;
+
+  // Furnished stay: the landlord payout waits for the tenant's 48-hour
+  // move-in check. 'awaiting' | 'confirmed' | 'reported' | 'resolved'.
+  moveInCheck?: string;
+  moveInCheckDeadline?: Date;
+  moveInReport?: string;
+  moveInResolution?: string;
 
   // Loaded separately
   landlordBank?: BankDetails;
@@ -151,6 +159,10 @@ export default function RentPayoutsPage() {
           landlordPayoutProofPath: data.landlordPayoutProofPath,
           agentPayoutProofPath: data.agentPayoutProofPath,
           createdAt: parseTimestamp(data.createdAt) || new Date(),
+          moveInCheck: data.moveInCheck,
+          moveInCheckDeadline: parseTimestamp(data.moveInCheckDeadline),
+          moveInReport: data.moveInReport,
+          moveInResolution: data.moveInResolution,
           bankLoading: true,
         };
       });
@@ -634,6 +646,8 @@ function RentPayoutDetailPanel({
       : null;
 
   const landlordWa = whatsappHref(payout.landlordPhone, payout.landlordName, payout.landlordPayout);
+  // Read once: the clock is not render-pure.
+  const [now] = useState(() => Date.now());
   const agentWa = payout.agentId
     ? whatsappHref(payout.agentPhone, payout.agentName || "Agent", payout.agentPayout)
     : null;
@@ -740,9 +754,20 @@ function RentPayoutDetailPanel({
               copied={copied}
               onCopy={onCopy}
             />
+            {payout.moveInCheck && (
+              <MoveInHold
+                rentalId={payout.id}
+                check={payout.moveInCheck}
+                deadline={payout.moveInCheckDeadline}
+                report={payout.moveInReport}
+                resolution={payout.moveInResolution}
+              />
+            )}
             {payout.landlordPayoutStatus === "pending" && (
               <button
                 onClick={onMarkLandlordPaid}
+                // The server refuses it too; this just says so up front.
+                disabled={moveInHeld(payout.moveInCheck, payout.moveInCheckDeadline, now)}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50 mt-2"
               >
                 <CheckCircle2 size={16} />
