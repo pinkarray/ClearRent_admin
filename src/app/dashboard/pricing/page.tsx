@@ -33,6 +33,40 @@ const FALLBACK = {
 
 type FieldKey = keyof typeof FALLBACK;
 
+// Landlord and agent service fee by rent band. Mirrors serviceFeeBands in
+// functions/src/pricing.ts. The last band has no ceiling (upTo empty).
+type BandRow = { upTo: string; landlord: string; agent: string };
+const DEFAULT_BANDS: BandRow[] = [
+  { upTo: "300000", landlord: "7500", agent: "3750" },
+  { upTo: "700000", landlord: "15000", agent: "7500" },
+  { upTo: "1500000", landlord: "30000", agent: "15000" },
+  { upTo: "3000000", landlord: "50000", agent: "25000" },
+  { upTo: "", landlord: "75000", agent: "37500" },
+];
+
+/** Why the bands cannot be saved, or null. The server would reject the same. */
+function bandsProblem(rows: BandRow[]): string | null {
+  let prev = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const last = i === rows.length - 1;
+    const l = Number(rows[i].landlord);
+    const a = Number(rows[i].agent);
+    if (!Number.isFinite(l) || l < 0 || !Number.isFinite(a) || a < 0) {
+      return "Every band needs a landlord and agent fee of 0 or more.";
+    }
+    if (last) {
+      if (rows[i].upTo.trim() !== "") return "The last band must have no upper limit.";
+    } else {
+      const up = Number(rows[i].upTo);
+      if (!Number.isFinite(up) || up <= prev) {
+        return "Each band's upper limit must be higher than the one before.";
+      }
+      prev = up;
+    }
+  }
+  return null;
+}
+
 // Verification is priced in pairs, so it renders as its own two-column block
 // rather than as six unrelated rows.
 const VERIFICATION_ROLES: {
@@ -84,8 +118,10 @@ const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
   },
   {
     key: "dealFee",
-    label: "Deal completion fee",
-    hint: "Per party on a completed rental - also sets the tenant's rent total",
+    label: "Tenant's deal fee",
+    hint:
+      "The tenant pays this on top of the rent when a rental is agreed. " +
+      "Landlords and agents pay the service fee bands below instead.",
   },
   {
     key: "extensionFee",
@@ -117,6 +153,7 @@ export default function PricingPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | undefined>();
   const [updatedBy, setUpdatedBy] = useState<string>("");
+  const [bands, setBands] = useState<BandRow[]>(DEFAULT_BANDS);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -163,6 +200,17 @@ export default function PricingPage() {
             extensionFee: String(d.extensionFee ?? FALLBACK.extensionFee),
             minRent: String(d.minRent ?? FALLBACK.minRent),
           });
+          if (Array.isArray(d.serviceFeeBands) && d.serviceFeeBands.length > 0) {
+            setBands(
+              d.serviceFeeBands.map(
+                (b: { upTo: number | null; landlord: number; agent: number }) => ({
+                  upTo: b.upTo == null ? "" : String(b.upTo),
+                  landlord: String(b.landlord),
+                  agent: String(b.agent),
+                })
+              )
+            );
+          }
           setUpdatedAt(parseTimestamp(d.updatedAt));
           setUpdatedBy(d.updatedBy || "");
         }
@@ -182,8 +230,10 @@ export default function PricingPage() {
     return !Number.isFinite(n) || n < 0;
   });
 
+  const bandError = bandsProblem(bands);
+
   const handleSave = async () => {
-    if (!canWrite || invalid.length > 0) return;
+    if (!canWrite || invalid.length > 0 || bandError) return;
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -209,6 +259,11 @@ export default function PricingPage() {
           inspection: { total: Number(values.inspectionTotal) },
           dealFee: Number(values.dealFee),
           extensionFee: Number(values.extensionFee),
+          serviceFeeBands: bands.map((b, i) => ({
+            upTo: i === bands.length - 1 ? null : Number(b.upTo),
+            landlord: Number(b.landlord),
+            agent: Number(b.agent),
+          })),
           minRent: Number(values.minRent),
           updatedAt: serverTimestamp(),
           updatedBy: "admin-dashboard",
@@ -349,6 +404,53 @@ export default function PricingPage() {
         ))}
       </div>
 
+      {/* Service fee bands - landlord and agent pay by the deal's rent */}
+      <div className="card space-y-3">
+        <div>
+          <p className="text-sm font-medium text-[rgb(var(--text-primary))]">
+            Service fee by rent
+          </p>
+          <p className="text-xs text-[rgb(var(--text-hint))]">
+            Taken from the landlord's rent and the agent's fee when a rental is
+            agreed, renewed, or a landlord-added tenancy moves onto ClearRent.
+            The band is picked by the yearly rent (a furnished stay's whole
+            stay). Deals already agreed keep the fee they were agreed at.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-xs text-[rgb(var(--text-hint))]">
+          <span>Rent up to (₦)</span>
+          <span>Landlord pays (₦)</span>
+          <span>Agent pays (₦)</span>
+        </div>
+        {bands.map((b, i) => (
+          <div key={i} className="grid grid-cols-3 gap-2">
+            {(["upTo", "landlord", "agent"] as const).map((k) =>
+              k === "upTo" && i === bands.length - 1 ? (
+                <span key={k} className="self-center text-sm text-[rgb(var(--text-secondary))]">
+                  Anything above
+                </span>
+              ) : (
+                <input
+                  key={k}
+                  type="number"
+                  min={0}
+                  step={500}
+                  disabled={!canWrite}
+                  value={b[k]}
+                  onChange={(e) =>
+                    setBands((rows) =>
+                      rows.map((r, n) => (n === i ? { ...r, [k]: e.target.value } : r))
+                    )
+                  }
+                  className="input text-right font-mono"
+                />
+              )
+            )}
+          </div>
+        ))}
+        {bandError && <p className="text-xs text-red-500">{bandError}</p>}
+      </div>
+
       {/* Inspection split - deliberately not editable yet */}
       <div className="card border-amber-500/30 bg-amber-500/5 flex items-start gap-3">
         <Lock size={18} className="text-amber-500 shrink-0 mt-0.5" />
@@ -370,7 +472,7 @@ export default function PricingPage() {
       <div className="flex items-center gap-3">
         <button
           onClick={handleSave}
-          disabled={!canWrite || saving || invalid.length > 0}
+          disabled={!canWrite || saving || invalid.length > 0 || bandError !== null}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[rgb(var(--brand))] text-white text-sm font-semibold disabled:opacity-50 transition-opacity"
         >
           {saving ? (
