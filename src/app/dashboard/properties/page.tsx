@@ -128,7 +128,8 @@ interface Property {
   // whole property is let.
   // 'unfurnished' | 'partly' | 'fully'; absent on listings from before it.
   furnishing?: string;
-  // 'furnished' = 1 to 11 months paid up front; absent or 'yearly' otherwise.
+  // 'furnished' or 'short' = 1 to 11 months paid up front; absent or
+  // 'yearly' otherwise.
   stayType?: string;
   minStayMonths?: number;
   maxStayMonths?: number;
@@ -1104,7 +1105,9 @@ function PropertyDetailPanel({
               value={
                 property.stayType === "furnished"
                   ? `Furnished stay, ${property.minStayMonths} to ${property.maxStayMonths} months`
-                  : "Yearly lease"
+                  : property.stayType === "short"
+                    ? `Short lease, ${property.minStayMonths} to ${property.maxStayMonths} months`
+                    : "Yearly lease"
               }
             />
             {property.stayType === "furnished" && (

@@ -479,6 +479,7 @@ function DocumentViewerPanel({
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewIsPdf, setPreviewIsPdf] = useState(false);
   const [loadingDoc, setLoadingDoc] = useState(false);
 
   // Fetch a private Storage doc through the admin-guarded route, with the
@@ -498,7 +499,12 @@ function DocumentViewerPanel({
         return;
       }
       const blob = await res.blob();
-      setPreviewUrl(URL.createObjectURL(blob));
+      // A bank statement is usually a PDF. Older app uploads carry no content
+      // type, so read the file's own "%PDF" signature too.
+      const head = await blob.slice(0, 4).text();
+      const pdf = blob.type === "application/pdf" || head === "%PDF";
+      setPreviewIsPdf(pdf);
+      setPreviewUrl(URL.createObjectURL(pdf ? new Blob([blob], { type: "application/pdf" }) : blob));
     } catch (err) {
       console.error("Error loading document:", err);
     } finally {
@@ -515,7 +521,8 @@ function DocumentViewerPanel({
     documents.push({ label: "Property Document", path: v.propertyDocUrl });
     documents.push({ label: "Utility Bill", path: v.utilityBillUrl });
   } else if (v.accountType === "tenant") {
-    documents.push({ label: "Proof of Income", path: v.proofOfIncomeUrl });
+    // Must cover the last 6 months and show income coming in regularly.
+    documents.push({ label: "Bank statement (check 6 months of steady income)", path: v.proofOfIncomeUrl });
   } else if (v.accountType === "agent") {
     documents.push({ label: "Proof of Address", path: v.proofOfAddressUrl });
     documents.push({ label: "Guarantor ID", path: v.guarantorIdUrl });
@@ -538,7 +545,11 @@ function DocumentViewerPanel({
           <button className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors" onClick={() => { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }}>
             <X size={20} className="text-white" />
           </button>
-          <img src={previewUrl} alt="Document preview" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
+          {previewIsPdf ? (
+            <iframe src={previewUrl} title="Document preview" className="w-full max-w-4xl h-[85vh] rounded-lg bg-white" onClick={(e) => e.stopPropagation()} />
+          ) : (
+            <img src={previewUrl} alt="Document preview" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
+          )}
         </div>
       )}
 
