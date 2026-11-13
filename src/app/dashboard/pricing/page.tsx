@@ -33,7 +33,7 @@ const FALLBACK = {
 
 type FieldKey = keyof typeof FALLBACK;
 
-// Landlord and agent service fee by rent band. Mirrors serviceFeeBands in
+// Service fee by rent band, paid by the tenant. Mirrors serviceFeeBands in
 // functions/src/pricing.ts. The last band has no ceiling (upTo empty).
 type BandRow = { upTo: string; landlord: string; agent: string };
 const DEFAULT_BANDS: BandRow[] = [
@@ -120,8 +120,8 @@ const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
     key: "dealFee",
     label: "Tenant's deal fee",
     hint:
-      "The tenant pays this on top of the rent when a rental is agreed. " +
-      "Landlords and agents pay the service fee bands below instead.",
+      "The tenant pays this on top of the rent when a rental is agreed, " +
+      "plus the service fee band below.",
   },
   {
     key: "extensionFee",
@@ -404,23 +404,24 @@ export default function PricingPage() {
         ))}
       </div>
 
-      {/* Service fee bands - landlord and agent pay by the deal's rent */}
+      {/* Service fee bands - the tenant pays by the deal's rent */}
       <div className="card space-y-3">
         <div>
           <p className="text-sm font-medium text-[rgb(var(--text-primary))]">
             Service fee by rent
           </p>
           <p className="text-xs text-[rgb(var(--text-hint))]">
-            Taken from the landlord's rent and the agent's fee when a rental is
-            agreed, renewed, or a landlord-added tenancy moves onto ClearRent.
-            The band is picked by the yearly rent (a furnished stay's whole
-            stay). Deals already agreed keep the fee they were agreed at.
+            Added to what the tenant pays when a rental is agreed, renewed, or a
+            landlord-added tenancy moves onto ClearRent. Nothing is taken from
+            the landlord's rent or the agent's fee. The band is picked by the
+            yearly rent (a month stay's whole stay). Renewals add the base fee
+            only. Deals already agreed keep the fee they were agreed at.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2 text-xs text-[rgb(var(--text-hint))]">
           <span>Rent up to (₦)</span>
-          <span>Landlord pays (₦)</span>
-          <span>Agent pays (₦)</span>
+          <span>Base fee (₦)</span>
+          <span>Extra with an agent (₦)</span>
         </div>
         {bands.map((b, i) => (
           <div key={i} className="grid grid-cols-3 gap-2">
