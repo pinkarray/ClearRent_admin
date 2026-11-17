@@ -45,6 +45,8 @@ import {
   FileSignature,
   HandCoins,
   Home,
+  ShieldAlert,
+  Landmark,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -58,6 +60,14 @@ function toDate(v: unknown): Date | null {
 // page to act on it - the admin just reviews + resolves it here.
 // Alerts about a stalled move-out, where the useful action is chasing a party
 // rather than acknowledging the alert.
+// Closed only by a recorded decision on the card, so no Dismiss: dismissing
+// would hide the case and leave no record of how it was judged.
+const NO_DISMISS = new Set([
+  "profile_identity_change",
+  "suspicious_activity",
+  "bank_name_mismatch",
+]);
+
 const HANDOVER_ALERTS = new Set([
   "rental_end_contested",
   "handover_settlement_contested",
@@ -107,6 +117,13 @@ const TYPE_META: Record<
   issue_reported: { icon: AlertTriangle, route: () => "/dashboard/issues" },
   issue_fix_disputed: { icon: AlertTriangle, route: () => "/dashboard/issues" },
   issue_pending_stale: { icon: AlertTriangle, route: () => "/dashboard/issues" },
+  // Decided on this card (Record decision / Approve name), never dismissed:
+  // the decision itself is the compliance record.
+  suspicious_activity: { icon: ShieldAlert, route: () => null },
+  bank_name_mismatch: {
+    icon: Landmark,
+    route: (a) => (a.targetId ? `/dashboard/users/${a.targetId}` : null),
+  },
   profile_identity_change: {
     icon: UserCog,
     route: (a) => (a.targetId ? `/dashboard/users/${a.targetId}` : null),
@@ -190,6 +207,11 @@ export default function AlertsPage() {
   // window.prompt headed with the site domain.
   const [nudging, setNudging] = useState<{ item: AdminAlert; target: "landlord" | "tenant" } | null>(null);
   const [nudgeNote, setNudgeNote] = useState("");
+  // Suspicious-activity decision being recorded.
+  const [deciding, setDeciding] = useState<AdminAlert | null>(null);
+  const [outcome, setOutcome] = useState<"reported" | "not_suspicious">("not_suspicious");
+  const [decisionNote, setDecisionNote] = useState("");
+  const [reportRef, setReportRef] = useState("");
   const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
@@ -327,6 +349,47 @@ export default function AlertsPage() {
       window.alert(
         err instanceof Error ? err.message : "Couldn't record it. Try again."
       );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // A suspicious-activity flag closes only with a recorded decision: reported
+  // to the NFIU (with its reference) or not suspicious (with the reason).
+  async function recordDecision() {
+    const item = deciding;
+    if (!canWrite || !item?.targetId) return;
+    setBusyId(item.id);
+    try {
+      const fn = httpsCallable(functions, "reviewComplianceFlag");
+      await fn({
+        flagId: item.targetId,
+        outcome,
+        note: decisionNote.trim(),
+        reportReference: reportRef.trim(),
+      });
+      setDeciding(null);
+      // The callable closes the alert; the listener drops the row.
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not record it. Try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // A bank account whose holder is not the verified person. Approve only after
+  // checking it is genuinely theirs (a business name, a married name).
+  async function approveBankName(item: AdminAlert) {
+    if (!canWrite || !item.targetId) return;
+    if (!window.confirm(
+      "Approve this bank account? Only do this if you have confirmed it belongs to the verified person."
+    )) return;
+    setBusyId(item.id);
+    try {
+      const fn = httpsCallable(functions, "approveBankName");
+      await fn({ uid: item.targetId });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not approve it. Try again.");
     } finally {
       setBusyId(null);
     }
@@ -562,7 +625,32 @@ export default function AlertsPage() {
                             Mark reviewed
                           </button>
                         )}
-                        {canWrite && item.type !== "profile_identity_change" && (
+                        {canWrite && item.type === "suspicious_activity" && (
+                          <button
+                            disabled={busy}
+                            onClick={() => {
+                              setOutcome("not_suspicious");
+                              setDecisionNote("");
+                              setReportRef("");
+                              setDeciding(item);
+                            }}
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl bg-[rgb(var(--brand))] text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            <ShieldAlert size={14} />
+                            Record decision
+                          </button>
+                        )}
+                        {canWrite && item.type === "bank_name_mismatch" && (
+                          <button
+                            disabled={busy}
+                            onClick={() => void approveBankName(item)}
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl bg-[rgb(var(--brand))] text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                            Approve name
+                          </button>
+                        )}
+                        {canWrite && !NO_DISMISS.has(item.type) && (
                           <button
                             disabled={busy}
                             onClick={() => dismissAlert(item)}
@@ -583,6 +671,60 @@ export default function AlertsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {deciding && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setDeciding(null)}>
+          <div className="w-full max-w-md rounded-lg bg-background p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">Record your decision</h2>
+            <p className="mt-1 text-sm text-[rgb(var(--text-secondary))]">{deciding.body}</p>
+            <div className="mt-4 space-y-2 text-sm">
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={outcome === "not_suspicious"} onChange={() => setOutcome("not_suspicious")} />
+                Not suspicious
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={outcome === "reported"} onChange={() => setOutcome("reported")} />
+                Reported to the NFIU
+              </label>
+            </div>
+            {outcome === "reported" && (
+              <label className="mt-4 block">
+                <span className="text-sm font-medium">NFIU report reference</span>
+                <input
+                  value={reportRef}
+                  onChange={(e) => setReportRef(e.target.value)}
+                  className="mt-1.5 w-full rounded-md border bg-background p-2 text-sm"
+                />
+              </label>
+            )}
+            <label className="mt-4 block">
+              <span className="text-sm font-medium">Why</span>
+              <textarea
+                value={decisionNote}
+                onChange={(e) => setDecisionNote(e.target.value)}
+                rows={3}
+                className="mt-1.5 w-full rounded-md border bg-background p-2 text-sm"
+              />
+            </label>
+            <div className="mt-5 flex justify-end gap-3">
+              <button className="btn-secondary text-sm px-4 py-2" onClick={() => setDeciding(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
+                disabled={
+                  busyId === deciding.id ||
+                  decisionNote.trim().length === 0 ||
+                  (outcome === "reported" && reportRef.trim().length === 0)
+                }
+                onClick={() => void recordDecision()}
+              >
+                Save decision
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

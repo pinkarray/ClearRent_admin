@@ -66,6 +66,9 @@ const PENDING_WORK = new Set([
   "issue_reported",
   "issue_fix_disputed",
   "issue_pending_stale",
+  // Decided on the card itself (reviewComplianceFlag / approveBankName).
+  "suspicious_activity",
+  "bank_name_mismatch",
 ]);
 
 /** True when the alert stands for an unresolved case, not just a record of one. */
